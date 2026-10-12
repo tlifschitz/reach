@@ -2,8 +2,11 @@
 
 **Optimize where things live, starting with your kitchen.**
 
-> 🚧 **Early development — building in public.** Nothing works yet. Follow along: the roadmap below
-> gets updated as features land.
+> 🚧 **Building in public.** Version 0.1 works end to end on a sample kitchen: engine, command
+> line, web app. It has not been run on a real, measured kitchen yet; that is the next step on the
+> roadmap below.
+
+![Floor plan with the path of a routine](docs/screenshots/floor-plan.jpg)
 
 ## The problem
 
@@ -38,6 +41,7 @@ Reach treats storage as an optimization problem:
 - **Estimated time**, combining walking and openings.
 - **Ergonomic effort**: bending down, reaching up, and climbing a step stool, weighted by how
   heavy the item is.
+- **Obstruction clearings**: how often you have to close a door that is in the way.
 
 Each metric is reported per routine and as a weekly total, so you can see the trade-offs instead
 of trusting a single score.
@@ -72,25 +76,189 @@ The engine is domain-agnostic: locations, items, tasks, and a cost model. The ki
 first use case, but the same approach applies to workshops, labs, supply rooms, or small
 warehouses. In logistics this family of problems is known as *slotting optimization*.
 
+## Quick start
+
+You need [uv](https://docs.astral.sh/uv/) and, for the web app, Node 20 or newer.
+
+```bash
+git clone <this repository> && cd reach
+make install        # uv sync + npm install
+make dev            # API on :8000, web app on http://localhost:5173
+```
+
+Open the web app, press **Use the sample kitchen**, then **Optimize**.
+
+Without Node, the command line does everything except draw:
+
+```bash
+uv sync
+uv run reach optimize            # the bundled sample kitchen
+```
+
+Or with Docker, which builds the web app and serves it from the API:
+
+```bash
+docker build -t reach .
+docker run --rm -p 8000:8000 reach        # http://localhost:8000
+```
+
+## Using it
+
+### Web app
+
+| View | What it does |
+| --- | --- |
+| **Data** | Upload your files or load the sample. Every validation problem is listed with its file, line and field. |
+| **Floor plan** | Top view with POIs, zones, walls and obstructions. Pick a routine to draw and animate its path. Click a wall to open its **elevation**: compartments at their real size and height, coloured by level, with their contents and how full they are. Pin or unpin items there. |
+| **Optimize** | Choose a seed and a budget, watch the best cost improve, stop early and keep the best solution so far. |
+| **Results** | What goes in each compartment with the capacity used, every metric per routine and per week, and the comparison with your current layout. Export the assignment as CSV. |
+| **Sensitivity** | Re-optimizes under perturbed frequencies and shows which item locations are robust. |
+| **Routines** | Edit routines, draft them from a description, a recipe or a usage diary, and check coverage. |
+
+![Elevation of a wall](docs/screenshots/elevation.jpg)
+
+![Results compared with the current layout](docs/screenshots/results.jpg)
+
+On the sample kitchen the optimized layout cuts the weekly cost by 57% against the hand-made
+"current" layout: 32% less walking, 37% fewer openings, 23% less time, and no more closing the
+entrance door to reach a cabinet.
+
+### Command line
+
+Every command takes a project folder and defaults to the bundled sample. Add `--json` for
+machine-readable output.
+
+```bash
+reach validate my-kitchen/                       # check the files
+reach simulate my-kitchen/ --current             # metrics of current_assignment.csv
+reach optimize my-kitchen/ --seed 1 --out best.csv
+reach optimize my-kitchen/ --time-limit 600      # wall-clock budget; Ctrl-C keeps the best so far
+reach sensitivity my-kitchen/ --runs 30 --perturbation 0.3
+reach coverage my-kitchen/
+reach serve                                      # the web app, if the frontend is built
+```
+
+With an iteration budget (the default), the same seed always gives the same result.
+
+### LLM helpers (optional)
+
+Reach works fully without an API key. With `ANTHROPIC_API_KEY` set, four helpers become
+available in the Routines view and under `reach llm`. Each one writes a proposal for you to
+review; none of them changes your project on its own.
+
+```bash
+reach llm routine "On Sundays I make pancakes..." --project my-kitchen/
+reach llm routine --url https://example.com/recipe --project my-kitchen/
+reach llm diary my-kitchen/diary.txt --project my-kitchen/      # measured weekly frequencies
+reach llm cover --project my-kitchen/                           # routines for unused items
+reach llm constraints --project my-kitchen/                     # from the comments in items.csv
+```
+
+The model is `claude-opus-5-5` unless `REACH_LLM_MODEL` says otherwise. These helpers are covered
+by tests with a scripted client; they have not been exercised against the live API yet.
+
+## Your own kitchen
+
+Copy [`data/templates`](data/templates), fill the files in, and run `reach validate` as you go.
+[`docs/DATA_COLLECTION.md`](docs/DATA_COLLECTION.md) explains what to measure and how.
+
+| File | Contents |
+| --- | --- |
+| `kitchen.yaml` | Walls, POIs, countertop zones, compartments (with their rectangle on a wall and their volume), obstructions, and every cost parameter. |
+| `items.csv` | One row per item: `id, name, category, volume_l, quantity, weight_kg, estimated_frequency_per_week, nest_group, fixed_location, tags, comments`. |
+| `routines.yaml` | Activities as ordered steps, each with a weekly frequency. |
+| `constraints.yaml` | Optional. Hard rules and soft "keep together" groups. |
+| `current_assignment.csv` | Optional. Where things are today, for the before/after comparison. |
+
+A compartment and a routine look like this:
+
+```yaml
+# kitchen.yaml
+compartments:
+  - id: n2_dr1
+    type: drawer                 # drawer | door | pantry_shelf
+    access_point: [90, 95]       # where you stand, on the floor plan (cm)
+    wall: north                  # its rectangle on the wall elevation:
+    offset_cm: 60
+    width_cm: 60
+    bottom_cm: 62                # the level (0-3) is derived from the height
+    top_cm: 85
+    volume_l: 29
+    tags: [child_reachable]
+
+obstructions:
+  - id: entrance_door            # open by default, and in the way while open
+    default_state: open
+    blocks_when: open
+    wall_range: {wall: north, from_cm: 0, to_cm: 60}
+    clear: {time_s: 3, openings: 1}
+    restore: {time_s: 3, openings: 1}
+```
+
+```yaml
+# routines.yaml
+routines:
+  - id: evening_tea
+    name: Evening tea
+    frequency_per_week: 7
+    start: table
+    steps:
+      - take: electric_kettle
+      - use: electric_kettle at main_sink
+      - put_down: electric_kettle at coffee_station
+      - take: mug
+      - take: tea_tin_herbal
+      - use: tea_tin_herbal at coffee_station
+      - store: tea_tin_herbal
+      - put_down: mug at table
+```
+
+## How it works
+
+Reach simulates each routine step by step under a candidate layout and measures distance,
+openings, time, ergonomic effort and obstruction clearings. The cost is the weighted sum of
+those metrics, normalized and multiplied by each routine's weekly frequency, plus penalties for
+soft constraints. A greedy pass builds a feasible layout and simulated annealing improves it;
+every layout the search visits respects capacity and the hard constraints, so stopping early
+always leaves a usable result.
+
+The formulas, the algorithm and the code layout are in
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). The judgment calls are in
+[`docs/DECISIONS.md`](docs/DECISIONS.md).
+
+## Development
+
+```bash
+make test       # pytest: unit, integration and end-to-end on the sample
+make lint       # ruff + TypeScript
+make format
+```
+
+The engine in `src/reach/core` knows nothing about kitchens; a test enforces that. Kitchen
+vocabulary lives in `src/reach/io`, the sample data and the frontend.
+
 ## Roadmap
 
-- [ ] Data model and validation (floor plan, items, constraints, routines)
-- [ ] Routine simulation and metrics
-- [ ] Optimizer (greedy initial solution + simulated annealing)
-- [ ] CLI
-- [ ] Web interface with floor plan view
-- [ ] Sample kitchen and data collection guide
-- [ ] Sensitivity analysis
-- [ ] LLM-assisted routine generation and constraint suggestions
-- [ ] Usage diary import
-- [ ] Animated routine paths on the floor plan
+- [x] Data model and validation (floor plan, items, constraints, routines)
+- [x] Routine simulation and metrics
+- [x] Optimizer (greedy initial solution + simulated annealing)
+- [x] CLI
+- [x] Web interface with floor plan view
+- [x] Wall elevations with real compartment heights
+- [x] Obstructions (doors that block compartments)
+- [x] Sample kitchen and data collection guide
+- [x] Sensitivity analysis
+- [x] LLM-assisted routine generation and constraint suggestions
+- [x] Usage diary import
+- [x] Animated routine paths on the floor plan
+- [ ] LLM helpers verified against the live API
 - [ ] My own kitchen, measured: real before/after results
 
 ## Building in public
 
 This project is being built with AI-assisted development. The original specification is in
-[`docs/ORIGINAL_PROMPT.md`](docs/ORIGINAL_PROMPT.md), and design decisions will be logged in
-`docs/DECISIONS.md` as they're made. Changes made to the spec along the way are recorded in
+[`docs/ORIGINAL_PROMPT.md`](docs/ORIGINAL_PROMPT.md), and design decisions are logged in
+[`docs/DECISIONS.md`](docs/DECISIONS.md) as they're made. Changes made to the spec along the way are recorded in
 [`docs/SPEC_CHANGES.md`](docs/SPEC_CHANGES.md).
 
 ## License
