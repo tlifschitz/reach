@@ -32,3 +32,35 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       - run: npm run build
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build the image (not pushed)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: reach:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Smoke test
+        run: |
+          docker run -d --name reach -p 8000:8000 reach:ci
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://localhost:8000/api/health; then
+              echo
+              break
+            fi
+            sleep 2
+          done
+          # The API answers, serves the built frontend, and can load the bundled sample.
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/api/health)" = 200
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/)" = 200
+          curl -fsS -X POST http://localhost:8000/api/project/sample | grep -q '"feasible":true'
+      - name: Container logs
+        if: always()
+        run: docker logs reach || true
