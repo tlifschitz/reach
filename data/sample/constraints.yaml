@@ -1,0 +1,95 @@
+# Constraints for the sample kitchen. One example of every constraint type.
+#
+# A selector (`select`, `from`) matches items by `items` (ids), `categories` or `tags`.
+
+hard:
+  # --- allowed / forbidden compartment tags ---
+  - id: kids_tableware_reachable
+    type: require_tag
+    select: {categories: [kids]}
+    tag: child_reachable
+    note: The kids set the table themselves.
+
+  - id: dangerous_out_of_reach
+    type: forbid_tag
+    select: {tags: [adults_only]}
+    tag: child_reachable
+
+  - id: heat_sensitive_away_from_heat
+    type: forbid_tag
+    select: {categories: [spices, oils, baking], items: [oven_mitts, coffee_beans]}
+    tag: near_heat
+    note: Spices and oils lose flavour next to the stove; chocolate melts.
+
+  - id: dry_goods_stay_dry
+    type: forbid_tag
+    select: {categories: [food_dry, baking, spices, textiles]}
+    tag: damp
+
+  # --- distance to a POI ---
+  - id: cleaning_near_utility_sink
+    type: max_distance
+    select: {categories: [cleaning]}
+    poi: secondary_sink
+    distance_cm: 120
+
+  - id: dishwashing_near_main_sink
+    type: max_distance
+    select: {categories: [dishwashing]}
+    poi: main_sink
+    distance_cm: 150
+
+  - id: textiles_away_from_stove
+    type: min_distance
+    select: {categories: [textiles]}
+    poi: stove
+    distance_cm: 80
+
+  # --- level ---
+  - id: knives_not_in_low_drawers
+    type: min_level
+    select: {tags: [sharp]}
+    level: 1
+    note: Out of reach of the children.
+
+  - id: heavy_items_low
+    type: max_level
+    select: {tags: [heavy]}
+    level: 1
+
+  - id: fragile_without_step_stool
+    type: max_level
+    select: {tags: [fragile]}
+    level: 2
+
+  # --- separation ---
+  - id: chemicals_apart_from_food
+    type: separate
+    select: {categories: [cleaning, dishwashing]}
+    from: {categories: [food_dry, spices, oils, baking, coffee_tea]}
+
+soft:
+  - id: espresso_kit
+    type: together
+    select: {items: [portafilter, tamper, knock_box, milk_jug, coffee_brush]}
+    mode: same_compartment
+    penalty: 0.01          # each extra compartment costs 1% of the baseline weekly cost
+
+  - id: mate_kit
+    type: together
+    select: {items: [mate_gourd, bombilla, yerba]}
+    mode: same_compartment
+    penalty: 0.01
+
+  - id: cutlery_tray
+    type: together
+    select: {items: [forks, table_knives, spoons, teaspoons]}
+    mode: same_compartment
+    penalty: 0.02
+
+  - id: baking_gear_nearby
+    type: together
+    select: {categories: [bakeware]}
+    mode: nearby
+    radius_cm: 80
+    penalty: 0.005         # per metre of average distance beyond the radius

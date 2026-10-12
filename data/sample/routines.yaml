@@ -1,0 +1,426 @@
+# Routines for the sample kitchen. Each one is a single activity with its own weekly frequency.
+#
+# Steps:
+#   go_to: <poi_or_zone>
+#   take: <item_id>                       walk to wherever the item is stored
+#   use: <item_id> at <poi_or_zone>
+#   put_down: <item_id> at <zone>
+#   store: <item_id>                      carry it to its compartment
+#   set_state: <obstruction_id> open|closed
+
+routines:
+  - id: espresso
+    name: Make an espresso
+    frequency_per_week: 14
+    start: entrance
+    steps:
+      - take: coffee_beans
+      - use: coffee_beans at coffee_station      # fill the grinder
+      - store: coffee_beans
+      - take: portafilter
+      - take: tamper
+      - use: portafilter at coffee_station       # grind and tamp
+      - use: portafilter at espresso_machine
+      - store: tamper
+      - take: espresso_cup
+      - put_down: espresso_cup at espresso_machine
+      - take: knock_box
+      - use: knock_box at coffee_station
+      - store: knock_box
+      - store: portafilter
+      - take: teaspoons
+      - take: espresso_cup
+      - put_down: espresso_cup at table
+      - put_down: teaspoons at table
+
+  - id: cappuccino
+    name: Make a cappuccino
+    frequency_per_week: 5
+    start: entrance
+    steps:
+      - take: coffee_beans
+      - use: coffee_beans at coffee_station
+      - store: coffee_beans
+      - take: portafilter
+      - take: tamper
+      - use: portafilter at coffee_station
+      - use: portafilter at espresso_machine
+      - store: tamper
+      - take: mug
+      - put_down: mug at espresso_machine
+      - take: milk_jug
+      - take: milk
+      - use: milk_jug at espresso_machine        # steam the milk
+      - store: milk
+      - take: knock_box
+      - use: knock_box at coffee_station
+      - store: knock_box
+      - use: milk_jug at main_sink               # rinse
+      - put_down: milk_jug at dish_rack
+      - go_to: coffee_station
+      - store: portafilter
+      - take: mug
+      - put_down: mug at table
+
+  - id: evening_tea
+    name: Evening tea
+    frequency_per_week: 7
+    start: table
+    steps:
+      - take: electric_kettle
+      - use: electric_kettle at main_sink        # fill it
+      - put_down: electric_kettle at coffee_station
+      - take: mug
+      - take: tea_tin_herbal
+      - take: tea_infuser
+      - use: tea_infuser at coffee_station
+      - store: tea_tin_herbal
+      - take: honey
+      - take: teaspoons
+      - use: honey at coffee_station
+      - store: honey
+      - put_down: mug at table
+      - put_down: teaspoons at table
+
+  - id: mate
+    name: Prepare mate
+    frequency_per_week: 10
+    start: entrance
+    steps:
+      - take: electric_kettle
+      - use: electric_kettle at main_sink
+      - put_down: electric_kettle at coffee_station
+      - take: mate_gourd
+      - take: bombilla
+      - take: yerba
+      - use: yerba at coffee_station
+      - store: yerba
+      - take: thermos
+      - use: thermos at coffee_station
+      - put_down: mate_gourd at table
+      - put_down: bombilla at table
+      - put_down: thermos at table
+
+  - id: toast_breakfast
+    name: Toast with butter and jam
+    frequency_per_week: 6
+    start: entrance
+    steps:
+      - take: bread
+      - take: bread_knife
+      - take: cutting_board_small
+      - use: bread at counter_east               # slice it, into the toaster
+      - store: bread
+      - take: side_plate
+      - take: table_knives
+      - take: butter
+      - take: jam
+      - put_down: side_plate at table
+      - put_down: table_knives at table
+      - put_down: butter at table
+      - put_down: jam at table
+      - go_to: counter_east
+      - use: bread_knife at main_sink
+      - put_down: bread_knife at dish_rack
+      - put_down: cutting_board_small at dish_rack
+
+  - id: cereal_breakfast
+    name: Cereal and yogurt
+    frequency_per_week: 5
+    start: entrance
+    steps:
+      - take: cereal_bowl
+      - take: spoons
+      - take: granola
+      - use: granola at counter_prep
+      - store: granola
+      - take: yogurt
+      - take: milk
+      - use: milk at counter_prep
+      - store: milk
+      - put_down: cereal_bowl at table
+      - put_down: yogurt at table
+      - put_down: spoons at table
+
+  - id: kids_snack
+    name: Kids' afternoon snack
+    frequency_per_week: 7
+    start: table
+    steps:
+      - take: kids_plates
+      - take: kids_cups
+      - put_down: kids_plates at table
+      - put_down: kids_cups at table
+      - take: cookies
+      - use: cookies at table
+      - store: cookies
+      - take: milk
+      - use: milk at table
+      - store: milk
+
+  - id: pasta_with_tomato_sauce
+    name: Pasta with tomato sauce
+    frequency_per_week: 2
+    start: entrance
+    steps:
+      - take: large_pot
+      - use: large_pot at main_sink              # fill with water
+      - put_down: large_pot at stove
+      - take: pot_lids
+      - put_down: pot_lids at stove
+      - take: salt
+      - use: salt at stove
+      - take: vegetables                         # onion and garlic
+      - put_down: vegetables at counter_prep
+      - take: cutting_board_large
+      - put_down: cutting_board_large at counter_prep
+      - take: chef_knife
+      - use: chef_knife at counter_prep
+      - take: frying_pan_large
+      - put_down: frying_pan_large at stove
+      - take: olive_oil
+      - use: olive_oil at stove
+      - store: olive_oil
+      - take: wooden_spoon
+      - use: wooden_spoon at stove
+      - take: tomato_cans
+      - take: can_opener
+      - use: can_opener at counter_prep
+      - store: can_opener
+      - use: tomato_cans at stove
+      - take: oregano
+      - use: oregano at stove
+      - store: oregano
+      - store: salt
+      - take: pasta_spaghetti
+      - use: pasta_spaghetti at stove
+      - store: pasta_spaghetti
+      - store: vegetables
+      - take: colander
+      - put_down: colander at main_sink
+      - take: large_pot                          # from the stove
+      - use: large_pot at main_sink              # drain
+      - take: soup_plate
+      - put_down: soup_plate at counter_prep
+      - take: pasta_server
+      - use: pasta_server at stove
+      - take: grater
+      - take: cheese
+      - use: grater at counter_prep
+      - store: cheese
+      - take: forks
+      - put_down: forks at table
+      - go_to: counter_prep
+      - go_to: table
+
+  - id: rice_stir_fry
+    name: Rice with stir-fried vegetables
+    frequency_per_week: 2
+    start: entrance
+    steps:
+      - take: medium_pot
+      - take: rice
+      - use: rice at main_sink                   # rinse the rice, add water
+      - store: rice
+      - put_down: medium_pot at stove
+      - take: vegetables
+      - put_down: vegetables at counter_prep
+      - take: cutting_board_large
+      - put_down: cutting_board_large at counter_prep
+      - take: chef_knife
+      - take: peeler
+      - use: peeler at counter_prep
+      - use: chef_knife at counter_prep
+      - take: wok
+      - put_down: wok at stove
+      - take: sunflower_oil
+      - use: sunflower_oil at stove
+      - store: sunflower_oil
+      - take: spatula
+      - use: spatula at stove
+      - take: soy_sauce
+      - use: soy_sauce at stove
+      - store: soy_sauce
+      - store: vegetables
+      - take: dinner_plate
+      - put_down: dinner_plate at counter_prep
+      - take: forks
+      - put_down: forks at table
+      - go_to: counter_prep
+      - go_to: table
+
+  - id: set_table
+    name: Set the table for dinner
+    frequency_per_week: 7
+    start: table
+    steps:
+      - take: placemats
+      - take: napkins
+      - put_down: placemats at table
+      - put_down: napkins at table
+      - take: dinner_plate
+      - put_down: dinner_plate at table
+      - take: forks
+      - take: table_knives
+      - put_down: forks at table
+      - put_down: table_knives at table
+      - take: water_glass
+      - put_down: water_glass at table
+      - take: water_jug
+      - use: water_jug at main_sink
+      - put_down: water_jug at table
+      - take: trivet
+      - take: salt
+      - take: pepper_mill
+      - put_down: trivet at table
+      - put_down: salt at table
+      - put_down: pepper_mill at table
+
+  - id: wash_up
+    name: Wash up by hand
+    frequency_per_week: 5
+    start: table
+    steps:
+      - go_to: main_sink
+      - take: rubber_gloves
+      - take: dish_soap
+      - take: sponge
+      - use: sponge at main_sink
+      - take: scrub_brush
+      - use: scrub_brush at main_sink
+      - store: scrub_brush
+      - store: dish_soap
+      - store: sponge
+      - store: rubber_gloves
+      - take: dish_towels
+      - use: dish_towels at dish_rack
+      - store: dish_towels
+
+  - id: unload_dish_rack
+    name: Unload the dish rack
+    frequency_per_week: 5
+    start: dish_rack
+    steps:
+      - store: frying_pan_large
+      - store: large_pot
+      - store: pot_lids
+      - go_to: dish_rack
+      - store: cutting_board_large
+      - store: cutting_board_small
+      - store: chef_knife
+      - store: bread_knife
+      - go_to: dish_rack
+      - store: wooden_spoon
+      - store: spatula
+      - store: colander
+
+  - id: load_dishwasher
+    name: Start the dishwasher
+    frequency_per_week: 6
+    start: table
+    steps:
+      - go_to: dishwasher
+      - take: dishwasher_tablets
+      - use: dishwasher_tablets at dishwasher
+      - store: dishwasher_tablets
+
+  - id: unload_dishwasher
+    name: Unload the dishwasher
+    frequency_per_week: 6
+    start: entrance
+    steps:
+      - go_to: dishwasher
+      - set_state: dishwasher_door open          # from here on it blocks the drawers next to it
+      - store: dinner_plate
+      - store: side_plate
+      - store: soup_plate
+      - go_to: dishwasher
+      - store: cereal_bowl
+      - store: kids_plates
+      - store: kids_cups
+      - go_to: dishwasher
+      - store: water_glass
+      - store: mug
+      - store: espresso_cup
+      - go_to: dishwasher
+      - store: forks
+      - store: table_knives
+      - store: spoons
+      - store: teaspoons
+      - go_to: dishwasher
+      - store: food_container_medium
+      - store: lunch_box
+      - go_to: dishwasher
+      - set_state: dishwasher_door closed
+
+  - id: pack_lunch
+    name: Pack lunch for work
+    frequency_per_week: 5
+    start: entrance
+    steps:
+      - take: food_container_medium
+      - take: lunch_box
+      - put_down: lunch_box at counter_prep
+      - put_down: food_container_medium at counter_prep
+      - take: vegetables
+      - use: vegetables at counter_prep
+      - store: vegetables
+      - take: forks
+      - put_down: forks at counter_prep
+      - take: water_bottle
+      - use: water_bottle at main_sink
+      - put_down: water_bottle at counter_prep
+
+  - id: clean_counters
+    name: Wipe the counters
+    frequency_per_week: 4
+    start: table
+    steps:
+      - take: all_purpose_cleaner
+      - take: microfiber_cloths
+      - use: microfiber_cloths at counter_prep
+      - use: microfiber_cloths at counter_east
+      - use: microfiber_cloths at coffee_station
+      - use: microfiber_cloths at secondary_sink
+      - store: all_purpose_cleaner
+      - store: microfiber_cloths
+
+  - id: take_out_trash
+    name: Take out the trash
+    frequency_per_week: 3
+    start: entrance
+    steps:
+      - take: trash_bags
+      - use: trash_bags at trash
+      - store: trash_bags
+
+  - id: bake_cake
+    name: Bake a cake
+    frequency_per_week: 0.5
+    start: entrance
+    steps:
+      - take: mixing_bowl_large
+      - take: kitchen_scale
+      - put_down: mixing_bowl_large at counter_prep
+      - take: flour
+      - take: sugar
+      - take: baking_powder
+      - use: flour at counter_prep
+      - store: flour
+      - store: sugar
+      - store: baking_powder
+      - take: eggs
+      - take: butter
+      - use: eggs at counter_prep
+      - store: eggs
+      - store: butter
+      - take: whisk
+      - use: whisk at counter_prep
+      - take: cake_tin
+      - use: cake_tin at counter_prep
+      - take: oven_mitts
+      - use: cake_tin at oven
+      - use: oven_mitts at oven
+      - store: kitchen_scale
+      - put_down: whisk at main_sink
+      - put_down: mixing_bowl_large at main_sink

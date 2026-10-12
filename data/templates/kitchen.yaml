@@ -1,0 +1,91 @@
+# Template: the space. Copy this folder, fill it in, and run `reach validate <folder>`.
+# docs/DATA_COLLECTION.md explains how to measure everything.
+#
+# Units are centimetres. Pick one corner of the room as the origin (0, 0); x grows along one
+# wall and y along the other.
+
+name: My kitchen
+
+# Floor outline, used only for drawing.
+room:
+  outline: []            # e.g. [[0, 0], [420, 0], [420, 320], [0, 320]]
+
+# Every wall (or island face) that has compartments on it.
+# `start` is the left end and `end` the right end as you face the wall from inside the room.
+walls: []
+#  - {id: north, name: North wall, start: [0, 0], end: [420, 0]}
+
+# How heights translate into levels. The level of a compartment comes from its centre height,
+# (bottom_cm + top_cm) / 2. Remove this block to use these defaults.
+level_ranges:
+  - {level: 0, max_cm: 60}     # low: bending down
+  - {level: 1, max_cm: 160}    # comfortable
+  - {level: 2, max_cm: 195}    # high: reaching up
+  - {level: 3}                 # needs a step stool
+
+# Fixed things you walk to: stove, sinks, fridge, freezer, appliances, outlets.
+# `position` is where you stand to use it. The wall rectangle is optional and only matters for
+# the elevation drawing and for obstructions defined with a wall range.
+pois: []
+#  - {id: main_sink, type: sink, name: Main sink, position: [160, 95],
+#     wall: north, offset_cm: 125, width_cm: 70, bottom_cm: 85, top_cm: 90}
+#  - {id: fridge, type: fridge, name: Fridge, position: [325, 270]}
+
+# Countertop areas and other surfaces where things are used or put down.
+zones: []
+#  - {id: counter_prep, type: countertop, name: Prep counter, position: [260, 95], size: [120, 60]}
+
+# Everything the optimizer may put items in.
+#   type           drawer | door | pantry_shelf
+#   access_point   where you stand to use it, on the floor plan
+#   wall, offset_cm, width_cm, bottom_cm, top_cm
+#                  its rectangle on the wall: distance from the wall's start, width, and the
+#                  heights of its bottom and top edge above the floor
+#   level          optional: overrides the level derived from the heights (0-3)
+#   volume_l       usable interior volume in litres
+#   max_fill_factor  share of the volume you are willing to fill (default 0.8)
+#   max_weight_kg  optional
+#   tags           free words that constraints can refer to
+compartments: []
+#  - {id: n2_dr1, type: drawer, name: Top drawer, access_point: [90, 95],
+#     wall: north, offset_cm: 60, width_cm: 60, bottom_cm: 62, top_cm: 85,
+#     volume_l: 29, max_fill_factor: 0.7, max_weight_kg: 25, tags: [child_reachable]}
+
+# Things that block compartments or zones while they are in one of their states.
+#   default_state  open | closed: the state at the start of every routine
+#   blocks_when    open | closed: the state in which it is in the way
+#   wall_range     everything on that stretch of wall is blocked ...
+#   blocks         ... and/or an explicit list of compartment, POI and zone ids
+#   clear/restore  what it costs to move it out of the way and to put it back
+#   position       optional: where you stand to move it (adds the walk)
+obstructions: []
+#  - id: entrance_door
+#    default_state: open
+#    blocks_when: open
+#    wall_range: {wall: north, from_cm: 0, to_cm: 60}
+#    clear: {time_s: 3, openings: 1}
+#    restore: {time_s: 3, openings: 1}
+
+# Cost parameters. Everything here is optional; these are the defaults.
+cost:
+  walking_speed_cm_s: 100
+  handling_time_s: 1.5              # seconds per item taken, used, put down or stored
+  openings:                         # per compartment type, optionally per level
+    drawer:       {default: {time_s: 2.0, cost: 1.0}}
+    door:         {default: {time_s: 2.5, cost: 1.0}, levels: {3: {time_s: 12, cost: 2.0}}}
+    pantry_shelf: {default: {time_s: 2.5, cost: 1.0}, levels: {3: {time_s: 12, cost: 2.0}}}
+    fridge:       {default: {time_s: 3.0, cost: 1.0}}
+    freezer:      {default: {time_s: 3.0, cost: 1.0}}
+  level_penalty: {0: 1.0, 1: 0.1, 2: 1.5, 3: 4.0}    # ergonomic effort per item handled
+  weight_factor: 0.5                # effort is multiplied by (1 + weight_factor * kg)
+  max_carry: null                   # e.g. 3 to add an extra trip when carrying more
+  nesting:
+    default_factor: 0.25            # each extra nested unit adds 25% of its volume
+    groups: {}                      # per nest_group, e.g. {plates: 0.6, pots: 0.35}
+  weights: {distance: 0.2, openings: 0.2, time: 0.35, effort: 0.25, extra_trips: 0, clearings: 0}
+  # normalizers: {distance: 100000, openings: 500, time: 4000, effort: 100}
+  # Items that no routine mentions are charged a generic access: a round trip from `origin` to
+  # their compartment (walk, opening, effort), times their estimated_frequency_per_week.
+  occasional_items:
+    enabled: true
+    origin: null                    # a point [x, y] or a POI/zone id; null = centre of everything
