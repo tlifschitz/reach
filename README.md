@@ -90,8 +90,8 @@ warehouses. In logistics this family of problems is known as *slotting optimizat
 
 This project is being built with AI-assisted development. The original specification is in
 [`docs/ORIGINAL_PROMPT.md`](docs/ORIGINAL_PROMPT.md), and design decisions will be logged in
-`docs/DECISIONS.md` as they're made.
-
+`docs/DECISIONS.md` as they're made. Changes made to the spec along the way are recorded in
+[`docs/SPEC_CHANGES.md`](docs/SPEC_CHANGES.md).
 
 ## License
 
