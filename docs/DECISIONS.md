@@ -69,9 +69,7 @@ Each entry says what was decided and why.
 23. **Hard constraints are never relaxed inside the search.** Moves are drawn from precomputed
     domains and rejected if capacity or separation would break, so every intermediate state is
     feasible and stopping early always yields a usable result.
-24. **Sensitivity runs include optimizer noise.** Each run uses a different seed as well as
-    different frequencies, so "stability" measures what a user would experience when re-running
-    with slightly different estimates. Items used by no routine are labelled `unused`.
+24. **Sensitivity is measured against optimizer noise.** See the Sensitivity section below.
 
 25. **Two extra moves: routine cluster and location exchange.** The spec lists move, swap and
     nest-group move. On the sample kitchen those alone left the search about 4% short and
@@ -81,18 +79,75 @@ Each entry says what was decided and why.
 27. **Greedy falls back to a packing order** (most constrained, largest first) when the
     frequency order cannot place everything. Usage order gives the best start; packing order
     gives the best chance of a feasible one.
-28. **Default budget of 200,000 iterations.** That is a few seconds on the sample (about 200
-    items, 44 compartments, 18 routines) and the cost has stopped improving by then. The spec
-    allowed 15 to 20 minutes; `--iterations` or `--time-limit` raise the budget for bigger
-    problems.
+28. **Library default of 200,000 iterations.** That is a few seconds on the sample (about 200
+    items, 44 compartments, 18 routines). The CLI and the app use a larger default; see 38.
+
+## Occasional items
+
+29. **Items that no routine mentions get a generic access cost.** Without it their location is
+    free, so the optimizer scatters them arbitrarily and they compete for nothing. Each one is
+    charged a round trip from a central point to its compartment (walk, opening, effort, any
+    door that is normally in the way), times its `estimated_frequency_per_week`. This is the
+    one place where the catalog estimate enters the cost; for items that do appear in routines
+    the routines still decide.
+30. **One access is one take.** Walk there, open, take, walk back. Putting the item away again
+    would be a second access and is assumed to be part of the estimate.
+31. **The origin defaults to the centroid of all locations** and is configurable as a point or a
+    POI/zone id (`cost.occasional_items.origin`). It stands for "wherever I happen to be".
+32. **It is reported as its own line and kept out of the normalizers.** The normalizers stay
+    defined by the routines, so "1.0" still means "the routines under the greedy layout", and
+    the occasional share of the total is visible (about 22% on the sample).
+    `cost.occasional_items.enabled: false` removes the term.
+
+## Sensitivity
+
+33. **Noise runs and perturbed runs.** The first version only perturbed frequencies, and most
+    items looked unstable. Re-optimizing with the *same* frequencies and a new seed shows how
+    much of that is the optimizer. Measured on the sample kitchen (20 runs of each kind,
+    ±30%, items that affect the cost; "wall+level" counts a move to another shelf on the same
+    wall and level as staying):
+
+    | Iterations × restarts | Noise: exact | Noise: wall+level | Perturbed: exact | Perturbed: wall+level | Noise cost min / median / max |
+    | --- | --- | --- | --- | --- | --- |
+    | 50,000 × 1 | 23% | 63% | 24% | 64% | 1.2218 / 1.2386 / 1.2618 |
+    | 200,000 × 1 | 38% | 69% | 36% | 69% | 1.2112 / 1.2226 / 1.2351 |
+    | 1,000,000 × 1 | 42% | 74% | 43% | 75% | 1.2060 / 1.2148 / 1.2229 |
+    | 200,000 × 5 | 48% | 71% | 46% | 72% | 1.2112 / 1.2141 / 1.2201 |
+    | 200,000 × 10 | 50% | 72% | 46% | 74% | 1.2072 / 1.2130 / 1.2185 |
+    | 1,000,000 × 5 | 57% | 77% | 54% | 76% | 1.2060 / 1.2099 / 1.2132 |
+
+    At every budget the perturbed runs are no less stable than the noise runs. On this sample,
+    essentially all of the instability is optimizer noise, and a ±30% error in the frequencies
+    adds nothing that can be measured on top of it.
+34. **More budget helps, and does not finish the job.** Going from 50,000 × 1 to 1,000,000 × 5
+    raises exact stability from 23% to 57%, narrows the cost spread from 0.040 to 0.007, and
+    lowers the median cost by 2.3%. But at the top budget the runs differ in cost by 0.6% while
+    43% of the items still change compartment: the problem has many layouts that are equally
+    good. That residue is a property of the kitchen (plenty of comfortable space close to
+    everything), not something more search removes.
+35. **Stability by area and level.** Locations carry a generic `area` (the wall, for a kitchen).
+    Labels use "same area and level", because the exact shelf among interchangeable neighbours
+    is not a meaningful difference. The exact-location share is still reported.
+36. **Labels: robust, noisy, sensitive.** `noisy` items move with unchanged frequencies;
+    `sensitive` ones are stable under noise and move only under perturbation. Only the second
+    group says something about the estimates.
+37. **Restarts instead of one long run.** `restarts = k` keeps the best of `k` independent
+    searches. For the same total work, 200,000 × 5 and 1,000,000 × 1 are about equal in median
+    cost; restarts give the narrower spread, a single long run the better best case. They are
+    combined.
+38. **Defaults of the CLI and the app: 1,000,000 iterations × 5 restarts**, about a minute for
+    one optimization of the sample and about ten for a 20 + 20 run sensitivity analysis on an
+    8-core laptop. That is the budget the spec allowed for (15 to 20 minutes), spent where it
+    buys stability. The library defaults stay at 200,000 × 1 so tests and scripts are fast. A
+    `--time-limit` is shared between the restarts.
 
 ## Application
 
-29. **One in-memory project per server process.** Reach is a local single-user tool. There is no
+39. **One in-memory project per server process.** Reach is a local single-user tool. There is no
     database and no authentication.
-30. **Jobs run in a child process.** Simulated annealing is CPU-bound Python; a separate process
+40. **Jobs run in a child process.** Simulated annealing is CPU-bound Python; a separate process
     keeps the API responsive and makes stopping reliable.
-31. **Uploaded and edited files are never written back to disk by the server.** The UI offers
+41. **Uploaded and edited files are never written back to disk by the server.** The UI offers
     downloads instead, so the bundled sample and your own files cannot be overwritten by mistake.
-32. **LLM output is validated with the same schemas as hand-written files** and is only ever a
+42. **LLM output is validated with the same schemas as hand-written files** and is only ever a
     proposal. The default model is set with `REACH_LLM_MODEL`.

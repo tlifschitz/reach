@@ -68,7 +68,10 @@ affects the optimization. Reach works fully without an API key.
 ### Trusting the result
 
 Usage frequencies are estimates. Reach's sensitivity analysis re-optimizes under perturbed
-frequencies and shows which item locations are robust and which depend on your guesses.
+frequencies and shows which item locations are robust and which depend on your guesses. It also
+re-optimizes with the *same* frequencies and a different random seed, to show how much of the
+movement is just the optimizer choosing between equally good layouts. On the sample kitchen that
+is nearly all of it: see decision 33 in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
 ## Beyond the kitchen
 
@@ -110,17 +113,19 @@ docker run --rm -p 8000:8000 reach        # http://localhost:8000
 | --- | --- |
 | **Data** | Upload your files or load the sample. Every validation problem is listed with its file, line and field. |
 | **Floor plan** | Top view with POIs, zones, walls and obstructions. Pick a routine to draw and animate its path. Click a wall to open its **elevation**: compartments at their real size and height, coloured by level, with their contents and how full they are. Pin or unpin items there. |
-| **Optimize** | Choose a seed and a budget, watch the best cost improve, stop early and keep the best solution so far. |
+| **Optimize** | Choose a seed, a budget and a number of restarts, watch the best cost improve, stop early and keep the best solution so far. |
 | **Results** | What goes in each compartment with the capacity used, every metric per routine and per week, and the comparison with your current layout. Export the assignment as CSV. |
-| **Sensitivity** | Re-optimizes under perturbed frequencies and shows which item locations are robust. |
+| **Sensitivity** | Re-optimizes with new seeds and with perturbed frequencies, so you can tell optimizer noise from real dependence on your estimates. Stability is shown by exact compartment and by wall and level. |
 | **Routines** | Edit routines, draft them from a description, a recipe or a usage diary, and check coverage. |
 
 ![Elevation of a wall](docs/screenshots/elevation.jpg)
 
 ![Results compared with the current layout](docs/screenshots/results.jpg)
 
-On the sample kitchen the optimized layout cuts the weekly cost by 57% against the hand-made
-"current" layout: 32% less walking, 37% fewer openings, 23% less time, and no more closing the
+![Sensitivity: optimizer noise against perturbed frequencies](docs/screenshots/sensitivity.jpg)
+
+On the sample kitchen the optimized layout cuts the weekly cost by 56% against the hand-made
+"current" layout: 31% less walking, 31% fewer openings, 21% less time, and no more closing the
 entrance door to reach a cabinet.
 
 ### Command line
@@ -133,12 +138,16 @@ reach validate my-kitchen/                       # check the files
 reach simulate my-kitchen/ --current             # metrics of current_assignment.csv
 reach optimize my-kitchen/ --seed 1 --out best.csv
 reach optimize my-kitchen/ --time-limit 600      # wall-clock budget; Ctrl-C keeps the best so far
-reach sensitivity my-kitchen/ --runs 30 --perturbation 0.3
+reach optimize my-kitchen/ --iterations 200000 --restarts 1   # a quick run, a few seconds
+reach sensitivity my-kitchen/ --runs 20 --perturbation 0.3
+reach sensitivity my-kitchen/ --mode baseline    # optimizer noise only: same frequencies, new seeds
 reach coverage my-kitchen/
 reach serve                                      # the web app, if the frontend is built
 ```
 
-With an iteration budget (the default), the same seed always gives the same result.
+With an iteration budget (the default), the same seed always gives the same result. The default
+is 1,000,000 iterations × 5 restarts: under a minute for the sample, about ten minutes for a
+full sensitivity analysis.
 
 ### LLM helpers (optional)
 
@@ -218,7 +227,9 @@ routines:
 Reach simulates each routine step by step under a candidate layout and measures distance,
 openings, time, ergonomic effort and obstruction clearings. The cost is the weighted sum of
 those metrics, normalized and multiplied by each routine's weekly frequency, plus penalties for
-soft constraints. A greedy pass builds a feasible layout and simulated annealing improves it;
+soft constraints. Items that no routine mentions are charged a generic round trip from the
+middle of the room, weighted by how often you estimate you use them, and reported as their own
+"occasional items" line. A greedy pass builds a feasible layout and simulated annealing improves it;
 every layout the search visits respects capacity and the hard constraints, so stopping early
 always leaves a usable result.
 

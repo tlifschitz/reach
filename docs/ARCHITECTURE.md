@@ -193,10 +193,30 @@ Let `M_m(r, a)` be metric `m` of routine `r` under assignment `a`, `f_r` the wee
 the routine, `w_m` the metric weights and `N_m` the normalizers.
 
 ```
-cost(a) = Σ_r f_r · Σ_m  w_m · M_m(r, a) / N_m   +   Σ_s penalty_s(a)
+cost(a) = Σ_r f_r · Σ_m  w_m · M_m(r, a) / N_m
+        + Σ_i e_i · Σ_m  w_m · A_m(i, a) / N_m        (occasional items)
+        + Σ_s penalty_s(a)
 
 m ∈ {distance, openings, time, effort, extra_trips, clearings}
 ```
+
+**Occasional items.** An item that no routine mentions would otherwise cost nothing wherever it
+is, and its location would be arbitrary. Each such item `i` with an estimated frequency
+`e_i > 0` is charged one generic access `A(i, a)` per estimated use: a round trip between a
+central point (the *origin*) and its location.
+
+```
+distance  = 2 · ‖origin − a(i)‖
+openings  = open_cost(a(i))           + clear and restore openings of obstructions that block by default
+time      = distance / speed + open_time(a(i)) + handling_time + their clear and restore times
+effort    = level_penalty[level] × (1 + weight_factor × weight_kg(i))
+clearings = number of obstructions that block a(i) by default
+```
+
+The origin is `cost.occasional_items.origin` (a point or a POI/zone id) and defaults to the
+centroid of all locations. `cost.occasional_items.enabled: false` turns the term off. The
+evaluation reports it as its own line, with its share of the total; the weekly totals include
+it. It is not part of the normalizers, which stay defined by the routines.
 
 **Normalizers.** `N_m = Σ_r f_r · M_m(r, a₀)` is the weekly total of metric `m` under the greedy
 initial solution `a₀` (1 if that total is 0). They are computed once, frozen, and stored with the
@@ -313,16 +333,38 @@ When no feasible start exists, `reach.core.optim.feasibility` explains why:
 
 ## 5. Sensitivity analysis
 
-`reach.core.sensitivity` runs the optimizer `N` times. Run `k` scales every routine frequency by
-an independent factor drawn from `U(1 − x, 1 + x)` and uses seed `seed + k`; normalizers are the
-baseline ones. Runs execute in a process pool. The report contains:
+Simulated annealing is stochastic, and a layout problem has many near-equivalent solutions. A
+naive "perturb and re-optimize" analysis therefore mixes two things: movement caused by the
+optimizer, and movement caused by the frequencies. `reach.core.sensitivity` separates them by
+comparing two sets of runs with one baseline layout:
 
-- per item: the share of runs in which it landed in its most common location, the share in which
-  it matched the unperturbed baseline, and a `robust` / `sensitive` / `unused` label;
-- the cost distribution (min, quartiles, max, mean, standard deviation).
+- **Noise runs** keep the frequencies and change only the seed.
+- **Perturbed runs** also scale every routine frequency by an independent factor drawn from
+  `U(1 − x, 1 + x)`.
 
-Items that no routine uses are labelled `unused`: their location does not affect the cost, so
-their instability says nothing.
+All runs use the same iterations, restarts and normalizers, and their seeds derive from the base
+seed. They execute in a process pool. `runs = 0` is the baseline mode (noise only).
+
+For every item and each set, the report gives the share of runs in which the item stays
+
+- in the **exact location** of the baseline, and
+- in the same **area and level** (for the kitchen: the same wall and level), so that swapping
+  between interchangeable neighbouring shelves does not count as instability.
+
+Each set also reports the mean of those shares over the items that affect the cost, and its cost
+spread. Items are labelled from the area-and-level shares with a threshold (0.8):
+
+| Label | Meaning |
+| --- | --- |
+| `robust` | stays in both sets |
+| `noisy` | moves even with unchanged frequencies: the optimizer sees the alternatives as equal |
+| `sensitive` | stable under noise, moves when the frequencies change: depends on the estimates |
+| `unused` | no routine and no estimated use; its location does not affect the cost |
+| `pinned` | fixed by the user |
+
+**Restarts.** `SimulatedAnnealing(restarts=k)` runs `k` independent searches from the same start
+with derived seeds and keeps the best. It is the direct way to spend a larger budget on lower
+variance, and it stays reproducible for a seed.
 
 ## 6. Coverage analysis
 

@@ -116,8 +116,9 @@ calibrate the fraction for a group, measure one stack: for 8 plates, 2.5 cm for 
 **Weight.** `weight_kg` of one unit. A kitchen scale handles most things; it only needs to be
 right for heavy items.
 
-**Frequency.** `estimated_frequency_per_week` is a guess, and it is only used as a cross-check
-against your routines. Useful anchors: daily = 7, twice a day = 14, weekdays = 5, monthly = 0.25,
+**Frequency.** `estimated_frequency_per_week` is a guess. For items that appear in routines it
+is only a cross-check. For items that no routine mentions it decides how much their location
+matters: each is charged a round trip from the middle of the room that many times a week. Useful anchors: daily = 7, twice a day = 14, weekdays = 5, monthly = 0.25,
 twice a year = 0.04. People overestimate rare items, so when in doubt go lower.
 
 **Fixed things.** Put the location id in `fixed_location` for anything that will not move:
