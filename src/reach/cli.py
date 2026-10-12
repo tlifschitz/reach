@@ -25,6 +25,8 @@ from reach.io.errors import ValidationReport
 from reach.io.export import assignment_csv
 from reach.io.project import Project, load_project
 from reach.summary import (
+    DEFAULT_ITERATIONS,
+    DEFAULT_RESTARTS,
     METRIC_LABELS,
     METRIC_SCALE,
     assignment_report,
@@ -104,6 +106,14 @@ def _metrics_table(title: str, report: dict[str, Any]) -> Table:
             f"{r['frequency']:g}",
             *[_fmt(m, r["weekly"][m]) for m in METRICS],
             f"{r['cost']:.3f}",
+        )
+    occ = ev["occasional"]
+    if occ["items"]:
+        table.add_row(
+            f"Occasional items ({occ['items']})",
+            "",
+            *[_fmt(m, occ["weekly"][m]) for m in METRICS],
+            f"{occ['cost']:.3f}",
         )
     table.add_section()
     soft = f" (+{ev['soft_total']:.3f} soft)" if ev["soft_total"] else ""
@@ -224,11 +234,16 @@ def simulate(
 def optimize(
     project_dir: ProjectDir = None,
     seed: Annotated[int, typer.Option(help="Random seed. Same seed, same result.")] = 0,
-    iterations: Annotated[int, typer.Option(help="Annealing iterations.")] = 200_000,
+    iterations: Annotated[
+        int, typer.Option(help="Annealing iterations per restart.")
+    ] = DEFAULT_ITERATIONS,
     time_limit: Annotated[
         float | None,
         typer.Option(help="Wall-clock budget in seconds. Replaces the iteration budget."),
     ] = None,
+    restarts: Annotated[
+        int, typer.Option(help="Independent runs, each with the full budget; the best is kept.")
+    ] = DEFAULT_RESTARTS,
     out: Annotated[Path | None, typer.Option(help="Write the assignment CSV here.")] = None,
     as_json: JsonFlag = False,
 ) -> None:
@@ -241,7 +256,9 @@ def optimize(
 
     cancel = threading.Event()
     previous = signal.signal(signal.SIGINT, lambda *_: cancel.set())
-    optimizer = SimulatedAnnealing(seed=seed, iterations=iterations, time_limit_s=time_limit)
+    optimizer = SimulatedAnnealing(
+        seed=seed, iterations=iterations, time_limit_s=time_limit, restarts=restarts
+    )
     try:
         if as_json:
             result = optimizer.optimize(problem, normalizers=normalizers, cancel=cancel)
@@ -307,30 +324,48 @@ def optimize(
 @app.command()
 def sensitivity(
     project_dir: ProjectDir = None,
-    runs: Annotated[int, typer.Option(help="Number of perturbed re-optimizations.")] = 20,
+    runs: Annotated[int, typer.Option(help="Re-optimizations of each kind.")] = 20,
+    mode: Annotated[
+        str,
+        typer.Option(
+            help="both: noise and perturbed runs. baseline: only new seeds, same frequencies "
+            "(optimizer noise). perturbed: only perturbed frequencies."
+        ),
+    ] = "both",
     perturbation: Annotated[
         float, typer.Option(help="Frequencies are scaled by U(1-x, 1+x).")
     ] = 0.3,
     seed: Annotated[int, typer.Option()] = 0,
-    iterations: Annotated[int, typer.Option(help="Annealing iterations per run.")] = 50_000,
+    iterations: Annotated[
+        int, typer.Option(help="Annealing iterations per restart.")
+    ] = DEFAULT_ITERATIONS,
+    restarts: Annotated[
+        int, typer.Option(help="Restarts per run; the best is kept.")
+    ] = DEFAULT_RESTARTS,
     workers: Annotated[int | None, typer.Option(help="Processes. Default: all cores.")] = None,
     as_json: JsonFlag = False,
 ) -> None:
-    """Re-optimize under perturbed frequencies and report which locations are robust."""
+    """Separate optimizer noise from real sensitivity to the frequency estimates."""
+    if mode not in ("both", "baseline", "perturbed"):
+        err.print("[red]--mode must be both, baseline or perturbed.[/red]")
+        raise typer.Exit(1)
     project = _load(project_dir, quiet=as_json)
     problem = project.require_problem()
     _feasible_start(problem)
+    kwargs: dict[str, Any] = {
+        "runs": 0 if mode == "baseline" else runs,
+        "noise_runs": 0 if mode == "perturbed" else runs,
+        "perturbation": perturbation,
+        "seed": seed,
+        "iterations": iterations,
+        "restarts": restarts,
+        "workers": workers,
+    }
     if as_json:
-        report = run_sensitivity(
-            problem,
-            runs=runs,
-            perturbation=perturbation,
-            seed=seed,
-            iterations=iterations,
-            workers=workers,
-        )
+        report = run_sensitivity(problem, **kwargs)
         typer.echo(json.dumps(sensitivity_dict(report, problem), indent=2))
         return
+    total = kwargs["runs"] + kwargs["noise_runs"]
     with Progress(
         TextColumn("[bold]Sensitivity"),
         BarColumn(),
@@ -339,47 +374,66 @@ def sensitivity(
         console=err,
         transient=True,
     ) as bar:
-        task = bar.add_task("runs", total=runs)
+        task = bar.add_task("runs", total=total)
         report = run_sensitivity(
             problem,
-            runs=runs,
-            perturbation=perturbation,
-            seed=seed,
-            iterations=iterations,
-            workers=workers,
             progress=lambda done, total: bar.update(task, completed=done, total=total),
+            **kwargs,
         )
-    data = sensitivity_dict(report, problem)
-    s = report.cost_summary
-    console.print(
-        f"{report.runs} runs with frequencies ±{perturbation:.0%}. "
-        f"Cost min {s['min']:.3f}, median {s['median']:.3f}, max {s['max']:.3f} "
-        f"(baseline {report.baseline_cost:.3f})."
+
+    table = Table(title="Stability against the baseline layout", title_justify="left")
+    table.add_column("Runs")
+    table.add_column("n", justify="right")
+    table.add_column("Same compartment", justify="right")
+    table.add_column("Same wall and level", justify="right")
+    table.add_column("Cost min / median / max", justify="right")
+    sets = (
+        ("Same frequencies, new seed (noise)", report.noise),
+        (f"Frequencies ±{perturbation:.0%}", report.perturbed),
     )
-    c = data["counts"]
-    console.print(
-        f"{c['robust']} robust, {c['sensitive']} sensitive, {c['unused']} unused, "
-        f"{c['pinned']} pinned items."
-    )
-    table = Table(title="Items whose location depends on the estimates", title_justify="left")
-    table.add_column("Item")
-    table.add_column("Baseline location")
-    table.add_column("Same as baseline", justify="right")
-    table.add_column("Most common location")
-    table.add_column("Share", justify="right")
-    sensitive = sorted(
-        (i for i in report.items if i.label == "sensitive"), key=lambda i: i.baseline_share
-    )
-    for i in sensitive:
+    for name, rs in sets:
+        if rs is None:
+            continue
+        s = rs.summary
         table.add_row(
-            problem.items[i.item].name,
-            i.baseline_location,
-            f"{i.baseline_share:.0%}",
-            i.modal_location,
-            f"{i.modal_share:.0%}",
+            name,
+            str(rs.runs),
+            f"{rs.exact_stability:.0%}",
+            f"{rs.area_stability:.0%}",
+            f"{s['min']:.4f} / {s['median']:.4f} / {s['max']:.4f}",
         )
-    if sensitive:
-        console.print(table)
+    console.print(table)
+    c = report.counts
+    console.print(
+        f"Baseline cost {report.baseline_cost:.4f}. By wall and level: {c['robust']} robust, "
+        f"{c['noisy']} noisy (move even with the same frequencies), {c['sensitive']} sensitive "
+        f"(move only when frequencies change), {c['unused']} unused, {c['pinned']} pinned."
+    )
+    rows = [i for i in report.items if i.label in ("sensitive", "noisy")]
+    if not rows:
+        return
+    detail = Table(title="Items that move", title_justify="left")
+    detail.add_column("Item")
+    detail.add_column("Kind")
+    detail.add_column("Baseline location")
+    detail.add_column("Noise: same wall+level", justify="right")
+    detail.add_column("Perturbed: same wall+level", justify="right")
+    detail.add_column("Most common location")
+
+    def pct(shares, attr: str) -> str:
+        return "-" if shares is None else f"{getattr(shares, attr):.0%}"
+
+    for i in sorted(rows, key=lambda i: (i.label != "sensitive", i.item)):
+        modal = (i.perturbed or i.noise).modal_location  # type: ignore[union-attr]
+        detail.add_row(
+            problem.items[i.item].name,
+            i.label,
+            i.baseline_location,
+            pct(i.noise, "area"),
+            pct(i.perturbed, "area"),
+            modal,
+        )
+    console.print(detail)
 
 
 @app.command()
@@ -415,13 +469,16 @@ def export(
     project_dir: ProjectDir = None,
     out: Annotated[Path, typer.Option(help="Destination CSV.")] = Path("assignment.csv"),
     seed: Annotated[int, typer.Option()] = 0,
-    iterations: Annotated[int, typer.Option()] = 200_000,
+    iterations: Annotated[int, typer.Option()] = DEFAULT_ITERATIONS,
+    restarts: Annotated[int, typer.Option()] = DEFAULT_RESTARTS,
 ) -> None:
     """Optimize and write only the assignment CSV."""
     project = _load(project_dir, quiet=True)
     problem = project.require_problem()
     _feasible_start(problem)
-    result = SimulatedAnnealing(seed=seed, iterations=iterations).optimize(problem)
+    result = SimulatedAnnealing(seed=seed, iterations=iterations, restarts=restarts).optimize(
+        problem
+    )
     out.write_text(assignment_csv(problem, result.assignment), encoding="utf-8")
     console.print(f"Assignment written to {out} (cost {result.cost:.4f}).")
 

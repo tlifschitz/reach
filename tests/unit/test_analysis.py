@@ -1,6 +1,8 @@
 import re
 from pathlib import Path
 
+import pytest
+
 from reach.core.coverage import analyze_coverage, inspect_routine
 from reach.core.model import Item, Problem
 from reach.core.sensitivity import perturbed_frequencies, run_sensitivity
@@ -60,34 +62,99 @@ def test_perturbation_stays_in_range_and_is_reproducible():
         assert r.frequency * 0.7 <= a[r.id] <= r.frequency * 1.3
 
 
-def test_sensitivity_report():
+def test_sensitivity_report_separates_noise_from_perturbation():
     p = random_problem(1)
     seen = []
     report = run_sensitivity(
         p,
-        runs=4,
+        runs=3,
         perturbation=0.3,
         seed=3,
         iterations=3_000,
         workers=1,
         progress=lambda done, total: seen.append((done, total)),
     )
-    assert report.runs == 4 and seen[-1] == (4, 4)
-    assert len(report.costs) == 4 and len(report.baseline_costs) == 4
-    assert report.cost_summary["min"] <= report.cost_summary["median"] <= report.cost_summary["max"]
+    # 3 noise runs (same frequencies, new seeds) and 3 perturbed runs.
+    assert seen[-1] == (6, 6)
+    assert report.noise.runs == 3 and report.perturbed.runs == 3
+    assert len(report.noise.costs) == 3 and len(report.baseline_costs) == 3
+    for rs in (report.noise, report.perturbed):
+        assert rs.summary["min"] <= rs.summary["median"] <= rs.summary["max"]
+        assert 0 <= rs.exact_stability <= rs.area_stability <= 1
     by_item = {s.item: s for s in report.items}
-    assert by_item["i39"].label == "pinned" and by_item["i39"].modal_share == 1.0
-    assert {s.label for s in report.items} <= {"robust", "sensitive", "unused", "pinned"}
+    assert by_item["i39"].label == "pinned" and by_item["i39"].noise.exact == 1.0
+    assert set(report.counts) == {"robust", "noisy", "sensitive", "unused", "pinned"}
+    assert sum(report.counts.values()) == len(report.items)
     for s in report.items:
-        assert 0 <= s.baseline_share <= s.modal_share <= 1
-        assert sum(s.locations.values()) == 4
-    again = run_sensitivity(p, runs=4, perturbation=0.3, seed=3, iterations=3_000, workers=1)
-    assert again.costs == report.costs
+        for shares in (s.noise, s.perturbed):
+            assert 0 <= shares.exact <= shares.area <= 1
+            assert shares.exact <= shares.modal_share
+            assert sum(shares.locations.values()) == 3
+    again = run_sensitivity(p, runs=3, perturbation=0.3, seed=3, iterations=3_000, workers=1)
+    assert again.noise.costs == report.noise.costs
+    assert again.perturbed.costs == report.perturbed.costs
+
+
+def test_noise_runs_keep_the_frequencies_and_change_only_the_seed():
+    p = random_problem(1)
+    report = run_sensitivity(p, runs=0, noise_runs=3, seed=3, iterations=3_000, workers=1)
+    assert report.perturbed is None and report.noise.runs == 3 and report.baseline_costs == []
+    assert all(s.perturbed is None for s in report.items)
+    assert report.counts["sensitive"] == 0  # without perturbed runs nothing can be called that
+    # Different seeds really are different searches.
+    assert len(set(report.noise.costs)) > 1
+    only_perturbed = run_sensitivity(p, runs=2, noise_runs=0, seed=3, iterations=3_000, workers=1)
+    assert only_perturbed.noise is None and only_perturbed.counts["noisy"] == 0
+
+
+def test_area_stability_ignores_moves_between_equivalent_locations():
+    from dataclasses import replace
+
+    from reach.core.model import Location, Point
+    from reach.core.sensitivity import _shares, area_key
+
+    locs = {
+        "a1": Location("a1", Point(0, 0), assignable=True, level=1, area="north"),
+        "a2": Location("a2", Point(10, 0), assignable=True, level=1, area="north"),
+        "a3": Location("a3", Point(20, 0), assignable=True, level=2, area="north"),
+        "b1": Location("b1", Point(0, 9), assignable=True, level=1, area="south"),
+        "free": Location("free", Point(5, 5), assignable=True, level=1),
+    }
+    p = Problem(locs, {"x": Item("x")}, (), PARAMS)
+    runs = [{"x": "a1"}, {"x": "a2"}, {"x": "a3"}, {"x": "b1"}]
+    shares = _shares(p, "x", "a1", runs)
+    assert shares.exact == 0.25  # only the first run
+    assert shares.area == 0.5  # a2 is the same area and level; a3 and b1 are not
+    assert area_key(p, "free") == ("free", 1)  # a location without an area is its own area
+    assert replace(shares, locations={}).modal_share == 0.25
+
+
+def test_restarts_keep_the_best_of_several_runs():
+    from reach.core.constraints import check_assignment
+    from reach.core.optim import SimulatedAnnealing
+
+    p = random_problem(2)
+    singles = [
+        SimulatedAnnealing(seed=5 + 7919 * n, iterations=3_000).optimize(p) for n in range(3)
+    ]
+    events = []
+    multi = SimulatedAnnealing(
+        seed=5, iterations=3_000, restarts=3, progress_interval_s=0
+    ).optimize(p, progress=events.append)
+    assert multi.cost == pytest.approx(min(r.cost for r in singles))
+    assert multi.iterations == sum(r.iterations for r in singles)
+    assert check_assignment(p, multi.assignment) == []
+    fractions = [e.fraction for e in events]
+    assert fractions == sorted(fractions) and fractions[-1] == 1.0
+    bests = [e.best_cost for e in events]
+    assert bests == sorted(bests, reverse=True)  # the reported best never gets worse
+    again = SimulatedAnnealing(seed=5, iterations=3_000, restarts=3).optimize(p)
+    assert again.assignment == multi.assignment
 
 
 def test_sensitivity_runs_in_a_process_pool():
-    report = run_sensitivity(random_problem(1), runs=2, seed=3, iterations=500, workers=2)
-    assert report.runs == 2
+    report = run_sensitivity(random_problem(1), runs=1, seed=3, iterations=500, workers=2)
+    assert report.noise.runs == 1 and report.perturbed.runs == 1
 
 
 KITCHEN_WORDS = re.compile(

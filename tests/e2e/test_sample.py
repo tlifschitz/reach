@@ -107,7 +107,7 @@ def test_coverage_on_the_sample(project):
 def test_sensitivity_on_the_sample(project, result):
     report = run_sensitivity(
         project.problem,
-        runs=3,
+        runs=2,
         perturbation=0.3,
         seed=1,
         iterations=10_000,
@@ -115,9 +115,21 @@ def test_sensitivity_on_the_sample(project, result):
         baseline=result.assignment,
         normalizers=baseline_normalizers(project.problem),
     )
-    labels = {s.label for s in report.items}
-    assert report.runs == 3 and "pinned" in labels and "unused" in labels
-    assert labels & {"robust", "sensitive"}
+    assert report.noise.runs == 2 and report.perturbed.runs == 2
+    assert report.counts["pinned"] == len(project.problem.pins)
+    assert report.noise.exact_stability <= report.noise.area_stability
+    plate = next(s for s in report.items if s.item == "dinner_plate")
+    assert plate.baseline_area.split(" · ")[0] in {"north", "east", "south"}
+
+
+def test_occasional_items_are_a_visible_part_of_the_cost(project, result):
+    ev = evaluate(project.problem, result.assignment, result.normalizers)
+    current = evaluate(project.problem, project.current_assignment, result.normalizers)
+    assert ev.occasional_items > 50
+    assert 0.05 < ev.occasional_cost / ev.cost < 0.5
+    assert ev.occasional_cost < current.occasional_cost
+    # Things that are never estimated to be used do not count.
+    assert ev.occasional_items < len(analyze_coverage(project.problem).unused_items) + 1
 
 
 def test_cli_validate():
@@ -153,6 +165,8 @@ def test_cli_simulate_optimize_and_coverage(tmp_path):
         str(SAMPLE),
         "--iterations",
         "20000",
+        "--restarts",
+        "1",
         "--seed",
         "3",
         "--json",
@@ -177,19 +191,15 @@ def test_cli_simulate_optimize_and_coverage(tmp_path):
 
 
 def test_cli_sensitivity():
-    args = [
-        "sensitivity",
-        str(SAMPLE),
-        "--runs",
-        "2",
-        "--iterations",
-        "3000",
-        "--workers",
-        "1",
-        "--json",
-    ]
-    data = json.loads(runner.invoke(app, args).output)
-    assert data["runs"] == 2 and sum(data["counts"].values()) == len(data["items"])
+    base = ["sensitivity", str(SAMPLE), "--runs", "2", "--iterations", "3000", "--restarts", "1"]
+    base += ["--workers", "1"]
+    data = json.loads(runner.invoke(app, [*base, "--json"]).output)
+    assert data["noise"]["runs"] == 2 and data["perturbed"]["runs"] == 2
+    assert sum(data["counts"].values()) == len(data["items"])
+    noise_only = json.loads(runner.invoke(app, [*base, "--mode", "baseline", "--json"]).output)
+    assert noise_only["perturbed"] is None and noise_only["noise"]["runs"] == 2
+    human = runner.invoke(app, base)
+    assert human.exit_code == 0 and "Stability against the baseline layout" in human.output
 
 
 def test_cli_reports_infeasibility(tmp_path):

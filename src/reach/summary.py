@@ -16,6 +16,11 @@ from reach.core.optim import greedy_assignment
 from reach.core.sensitivity import SensitivityReport
 from reach.core.simulate import simulate
 
+DEFAULT_ITERATIONS = 1_000_000
+DEFAULT_RESTARTS = 5
+"""Defaults of the CLI and the web app: about a minute on the sample kitchen. Chosen from the
+noise measurements in ``docs/DECISIONS.md``; the library defaults stay small and fast."""
+
 METRIC_LABELS = {
     "distance": "Distance (m)",
     "openings": "Openings",
@@ -56,6 +61,13 @@ def evaluation_dict(ev: Evaluation) -> dict[str, Any]:
         "soft_total": ev.soft_total,
         "soft": ev.soft,
         "totals": ev.totals,
+        "routine_totals": ev.routine_totals,
+        "occasional": {
+            "weekly": ev.occasional,
+            "cost": ev.occasional_cost,
+            "items": ev.occasional_items,
+            "share": ev.occasional_cost / ev.cost if ev.cost else 0.0,
+        },
         "normalizers": ev.normalizers,
         "routines": [asdict(r) for r in ev.routines],
     }
@@ -143,6 +155,15 @@ def comparison(before: Mapping[str, Any], after: Mapping[str, Any]) -> dict[str,
         "cost_before": b["cost"],
         "cost_after": a["cost"],
         "cost_change": change(b["cost"], a["cost"]),
+        "occasional": {
+            "items": a["occasional"]["items"],
+            "before": b["occasional"]["weekly"],
+            "after": a["occasional"]["weekly"],
+            "cost_before": b["occasional"]["cost"],
+            "cost_after": a["occasional"]["cost"],
+            "cost_change": change(b["occasional"]["cost"], a["occasional"]["cost"]),
+            "share": a["occasional"]["share"],
+        },
         "totals": {
             m: {
                 "before": b["totals"][m],
@@ -207,8 +228,4 @@ def sensitivity_dict(report: SensitivityReport, problem: Problem) -> dict[str, A
     data = asdict(report)
     for row in data["items"]:
         row["name"] = problem.items[row["item"]].name
-    data["counts"] = {
-        label: sum(1 for s in report.items if s.label == label)
-        for label in ("robust", "sensitive", "unused", "pinned")
-    }
     return data

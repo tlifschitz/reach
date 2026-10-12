@@ -99,7 +99,7 @@ def test_evaluate_current_and_greedy(loaded):
 
 
 def test_optimize_job_progress_result_and_export(loaded):
-    job = loaded.post("/api/optimize", json={"seed": 1, "iterations": 60_000}).json()
+    job = loaded.post("/api/optimize", json={"seed": 1, "iterations": 60_000, "restarts": 1}).json()
     assert job["status"] == "running" and job["kind"] == "optimize"
 
     events = []
@@ -133,7 +133,7 @@ def test_optimize_job_progress_result_and_export(loaded):
 
 
 def test_stop_keeps_the_best_solution(loaded):
-    job = loaded.post("/api/optimize", json={"iterations": 40_000_000}).json()
+    job = loaded.post("/api/optimize", json={"iterations": 40_000_000, "restarts": 1}).json()
     deadline = time.time() + 30
     while time.time() < deadline:
         if loaded.get(f"/api/jobs/{job['id']}").json()["progress"].get("iteration", 0) > 0:
@@ -147,7 +147,7 @@ def test_stop_keeps_the_best_solution(loaded):
 
 
 def test_pin_unpin_and_reoptimize(loaded):
-    job = loaded.post("/api/optimize", json={"iterations": 20_000}).json()
+    job = loaded.post("/api/optimize", json={"iterations": 20_000, "restarts": 1}).json()
     wait(loaded, job["id"])
     before = loaded.get("/api/result").json()["assignment"]
     target = "pantry_6" if before["dinner_plate"] != "pantry_6" else "pantry_5"
@@ -161,7 +161,7 @@ def test_pin_unpin_and_reoptimize(loaded):
     plate = next(i for i in p["items"] if i["id"] == "dinner_plate")
     assert plate["pinned"] == target and plate["pin_source"] == "ui" and not p["has_result"]
 
-    job = loaded.post("/api/optimize", json={"iterations": 20_000}).json()
+    job = loaded.post("/api/optimize", json={"iterations": 20_000, "restarts": 1}).json()
     wait(loaded, job["id"])
     after = loaded.get("/api/result").json()
     assert after["assignment"]["dinner_plate"] == target and after["violations"] == []
@@ -176,14 +176,29 @@ def test_pin_unpin_and_reoptimize(loaded):
 
 
 def test_sensitivity_job(loaded):
-    request = {"runs": 2, "iterations": 3_000, "workers": 1, "seed": 2}
+    request = {"runs": 2, "iterations": 3_000, "restarts": 1, "workers": 1, "seed": 2}
     job = loaded.post("/api/sensitivity", json=request).json()
     final = wait(loaded, job["id"])
-    assert final["status"] == "done" and final["progress"]["done"] == 2
+    assert final["status"] == "done" and final["progress"]["done"] == 4  # 2 noise + 2 perturbed
     report = loaded.get("/api/sensitivity").json()
-    assert report["present"] and report["runs"] == 2 and len(report["costs"]) == 2
+    assert report["present"] and report["noise"]["runs"] == 2 and report["perturbed"]["runs"] == 2
     assert sum(report["counts"].values()) == len(report["items"])
-    assert {"name", "label", "baseline_share", "modal_location"} <= set(report["items"][0])
+    item = report["items"][0]
+    assert {"name", "label", "baseline_location", "baseline_area", "noise", "perturbed"} <= set(
+        item
+    )
+    assert {"exact", "area", "modal_location"} <= set(item["noise"])
+    assert loaded.post("/api/sensitivity", json={"runs": 0, "noise_runs": 0}).status_code == 422
+
+
+def test_optimize_with_restarts(loaded):
+    job = loaded.post("/api/optimize", json={"iterations": 10_000, "restarts": 2}).json()
+    assert wait(loaded, job["id"])["status"] == "done"
+    result = loaded.get("/api/result").json()
+    assert result["iterations"] >= 20_000 and result["violations"] == []
+    occasional = result["evaluation"]["occasional"]
+    assert occasional["items"] > 0 and 0 < occasional["share"] < 1
+    assert result["vs_current"]["occasional"]["cost_change"] < 0
 
 
 def test_coverage_endpoint(loaded):

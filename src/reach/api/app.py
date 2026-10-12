@@ -35,6 +35,8 @@ from reach.io.project import (
 )
 from reach.io.schemas import ConstraintsFile, RoutineModel
 from reach.summary import (
+    DEFAULT_ITERATIONS,
+    DEFAULT_RESTARTS,
     assignment_report,
     baseline_normalizers,
     comparison,
@@ -306,8 +308,9 @@ def export_assignment(source: Source = "result") -> PlainTextResponse:
 
 class OptimizeRequest(BaseModel):
     seed: int = 0
-    iterations: int = Field(default=200_000, ge=0, le=50_000_000)
+    iterations: int = Field(default=DEFAULT_ITERATIONS, ge=0, le=50_000_000)
     time_limit_s: float | None = Field(default=None, gt=0, le=3600)
+    restarts: int = Field(default=DEFAULT_RESTARTS, ge=1, le=100)
     start: Literal["greedy", "result"] = "greedy"
 
 
@@ -435,16 +438,22 @@ def reset_pins() -> dict[str, Any]:
 
 
 class SensitivityRequest(BaseModel):
-    runs: int = Field(default=20, ge=1, le=500)
+    runs: int = Field(default=20, ge=0, le=500)
+    """Perturbed runs. 0 measures optimizer noise only."""
+    noise_runs: int | None = Field(default=None, ge=0, le=500)
+    """Runs with unperturbed frequencies and new seeds. Defaults to ``runs``."""
     perturbation: float = Field(default=0.3, gt=0, lt=1)
     seed: int = 0
-    iterations: int = Field(default=50_000, ge=0, le=10_000_000)
+    iterations: int = Field(default=DEFAULT_ITERATIONS, ge=0, le=10_000_000)
+    restarts: int = Field(default=DEFAULT_RESTARTS, ge=1, le=100)
     workers: int | None = Field(default=None, ge=1)
 
 
 @app.post("/api/sensitivity")
 def start_sensitivity(request: SensitivityRequest) -> dict[str, Any]:
     problem, _, normalizers, _ = state.ready()
+    if request.runs == 0 and request.noise_runs == 0:
+        raise HTTPException(422, "Ask for at least one run.")
     baseline = state.result["assignment"] if state.result else None
 
     def store(job: Job) -> None:

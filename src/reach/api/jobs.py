@@ -50,6 +50,7 @@ def optimize_worker(
             seed=params.get("seed", 0),
             iterations=params.get("iterations", 200_000),
             time_limit_s=params.get("time_limit_s"),
+            restarts=params.get("restarts", 1),
         ).optimize(
             problem, initial=initial, normalizers=normalizers, progress=progress, cancel=cancel
         )
@@ -88,9 +89,11 @@ def sensitivity_worker(
         report = run_sensitivity(
             problem,
             runs=params.get("runs", 20),
+            noise_runs=params.get("noise_runs"),
             perturbation=params.get("perturbation", 0.3),
             seed=params.get("seed", 0),
-            iterations=params.get("iterations", 50_000),
+            iterations=params.get("iterations", 200_000),
+            restarts=params.get("restarts", 1),
             workers=params.get("workers"),
             baseline=baseline,
             normalizers=normalizers,
