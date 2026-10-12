@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
+node_modules/
+frontend/dist/
+.env
+.DS_Store
+.reach/
+*.proposed.yaml
+!data/sample/*.proposed.yaml
