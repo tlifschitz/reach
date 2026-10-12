@@ -116,6 +116,20 @@ export function ResultsView({ project, result, goOptimize, showRoutine }: Props)
                   <td><button className="link" onClick={() => showRoutine(r.id)}>Show path</button></td>
                 </tr>
               ))}
+              {cmp.occasional.items > 0 && (
+                <tr>
+                  <td title="Items that no routine uses: a round trip from the central point to their compartment, times their estimated weekly use">
+                    Occasional items <span className="muted">({cmp.occasional.items} not in any routine)</span>
+                  </td>
+                  <td />
+                  {metrics.map((m) => (
+                    <td className="num" key={m} title={`${label}: ${fmtMetric(m, cmp.occasional.before[m])}`}>{fmtMetric(m, cmp.occasional.after[m])}</td>
+                  ))}
+                  <td className="num">{cmp.occasional.cost_after.toFixed(3)}</td>
+                  <td className="num"><Delta change={cmp.occasional.cost_change} /></td>
+                  <td />
+                </tr>
+              )}
               <tr className="total">
                 <td>Weekly total</td>
                 <td />
@@ -128,8 +142,9 @@ export function ResultsView({ project, result, goOptimize, showRoutine }: Props)
           </table>
         </div>
         <p className="muted small" style={{ marginTop: 8 }}>
-          Hover a number to see the value under the {label}. Cost is the weighted sum of the normalized metrics
-          {result.evaluation.soft_total > 0 ? `, plus ${result.evaluation.soft_total.toFixed(3)} of soft-constraint penalties` : ""}.
+          Hover a number to see the value under the {label}.
+          {cmp.occasional.items > 0 ? ` Occasional items are ${Math.round(cmp.occasional.share * 100)}% of the weekly cost.` : ""} Cost is the weighted sum of the normalized metrics
+          {result.evaluation.soft_total >= 0.0005 ? `, plus ${result.evaluation.soft_total.toFixed(3)} of soft-constraint penalties` : ""}.
         </p>
       </section>
 

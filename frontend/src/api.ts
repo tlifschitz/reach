@@ -189,6 +189,8 @@ export interface Report {
     soft_total: number;
     soft: Record<string, number>;
     totals: Metrics;
+    routine_totals: Metrics;
+    occasional: { weekly: Metrics; cost: number; items: number; share: number };
     normalizers: Metrics;
     routines: RoutineEval[];
   };
@@ -202,6 +204,15 @@ export interface Comparison {
   cost_after: number;
   cost_change: number | null;
   totals: Record<Metric, { before: number; after: number; change: number | null }>;
+  occasional: {
+    items: number;
+    before: Metrics;
+    after: Metrics;
+    cost_before: number;
+    cost_after: number;
+    cost_change: number | null;
+    share: number;
+  };
   routines: {
     id: string;
     name: string;
@@ -269,28 +280,43 @@ export interface Trace {
   events: TraceEvent[];
 }
 
+export interface Shares {
+  exact: number;
+  area: number;
+  modal_location: string;
+  modal_share: number;
+  locations: Record<string, number>;
+}
+
 export interface Stability {
   item: string;
   name: string;
   baseline_location: string;
-  modal_location: string;
-  modal_share: number;
-  baseline_share: number;
-  label: "robust" | "sensitive" | "unused" | "pinned";
-  locations: Record<string, number>;
+  baseline_area: string;
+  label: "robust" | "noisy" | "sensitive" | "unused" | "pinned";
+  noise: Shares | null;
+  perturbed: Shares | null;
+}
+
+export interface RunSet {
+  runs: number;
+  costs: number[];
+  summary: Record<string, number>;
+  exact_stability: number;
+  area_stability: number;
 }
 
 export interface Sensitivity {
   present: boolean;
-  runs?: number;
   perturbation?: number;
   iterations?: number;
+  restarts?: number;
   robust_threshold?: number;
   baseline_cost?: number;
-  costs?: number[];
+  noise?: RunSet | null;
+  perturbed?: RunSet | null;
   baseline_costs?: number[];
   items?: Stability[];
-  cost_summary?: Record<string, number>;
   counts?: Record<string, number>;
 }
 
@@ -392,12 +418,12 @@ export const api = {
   trace: (routine: string, source: string) =>
     request<Trace>(`/api/trace?routine=${encodeURIComponent(routine)}&source=${source}`),
   result: () => request<Result>("/api/result"),
-  optimize: (body: { seed: number; iterations?: number; time_limit_s?: number | null; start: string }) =>
+  optimize: (body: { seed: number; iterations?: number; time_limit_s?: number | null; restarts?: number; start: string }) =>
     post<JobSnapshot>("/api/optimize", body),
   stop: (id: string) => post<JobSnapshot>(`/api/jobs/${id}/stop`),
   pin: (item: string, location: string | null) => post<Project>("/api/pins", { item, location }),
   resetPins: () => request<Project>("/api/pins", { method: "DELETE" }),
-  startSensitivity: (body: { runs: number; perturbation: number; seed: number; iterations: number }) =>
+  startSensitivity: (body: { runs: number; noise_runs: number; perturbation: number; seed: number; iterations: number; restarts: number }) =>
     post<JobSnapshot>("/api/sensitivity", body),
   sensitivity: () => request<Sensitivity>("/api/sensitivity"),
   coverage: () => request<Coverage>("/api/coverage"),

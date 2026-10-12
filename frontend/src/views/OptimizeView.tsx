@@ -16,8 +16,9 @@ let lastJob: JobSnapshot | null = null;
 export function OptimizeView({ project, result, onDone, onError, goTo }: Props) {
   const [seed, setSeed] = useState(result.seed ?? 0);
   const [mode, setMode] = useState<"iterations" | "time">("iterations");
-  const [iterations, setIterations] = useState(200_000);
+  const [iterations, setIterations] = useState(1_000_000);
   const [seconds, setSeconds] = useState(30);
+  const [restarts, setRestarts] = useState(5);
   const [fromResult, setFromResult] = useState(false);
   const [job, setJobState] = useState<JobSnapshot | null>(lastJob);
   const setJob = (j: JobSnapshot | null) => {
@@ -41,6 +42,7 @@ export function OptimizeView({ project, result, onDone, onError, goTo }: Props) 
     try {
       const j = await api.optimize({
         seed,
+        restarts,
         start: fromResult && result.present ? "result" : "greedy",
         ...(mode === "iterations" ? { iterations } : { time_limit_s: seconds }),
       });
@@ -88,6 +90,10 @@ export function OptimizeView({ project, result, onDone, onError, goTo }: Props) 
               <input type="number" min={1} value={seconds} onChange={(e) => setSeconds(Number(e.target.value))} disabled={running} />
             </label>
           )}
+          <label className="field" title="Independent runs, each with the full budget. The best one is kept.">
+            Restarts
+            <input type="number" min={1} max={100} value={restarts} onChange={(e) => setRestarts(Math.max(1, Number(e.target.value)))} disabled={running} style={{ width: 80 }} />
+          </label>
           <label className="field">
             Start from
             <select value={fromResult ? "result" : "greedy"} onChange={(e) => setFromResult(e.target.value === "result")} disabled={running || !result.present}>
@@ -106,7 +112,7 @@ export function OptimizeView({ project, result, onDone, onError, goTo }: Props) 
         </div>
         <p className="muted small">
           {mode === "iterations"
-            ? "With an iteration budget the same seed always gives the same result."
+            ? "With an iteration budget the same seed always gives the same result. Each restart runs the full number of iterations and the best one is kept."
             : "A time limit depends on the speed of this machine, so results are not exactly reproducible."}
           {pinned > 0 ? ` ${pinned} item${pinned === 1 ? " is" : "s are"} pinned from the floor plan.` : ""}
         </p>
