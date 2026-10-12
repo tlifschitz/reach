@@ -81,7 +81,7 @@ warehouses. In logistics this family of problems is known as *slotting optimizat
 You need [uv](https://docs.astral.sh/uv/) and, for the web app, Node 20 or newer.
 
 ```bash
-git clone <this repository> && cd reach
+git clone https://github.com/tlifschitz/reach.git && cd reach
 make install        # uv sync + npm install
 make dev            # API on :8000, web app on http://localhost:5173
 ```
