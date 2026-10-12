@@ -261,10 +261,17 @@ def get_file(name: str) -> PlainTextResponse:
 Source = Literal["greedy", "current", "result"]
 
 
+def _without_pins(violations: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The current layout is what it is: a pin made for the optimizer is not a rule it breaks."""
+    return [v for v in violations if v["kind"] != "pin"]
+
+
 @app.get("/api/evaluate")
 def evaluate_assignment(source: Source = "greedy") -> dict[str, Any]:
     problem, compiled, normalizers, _ = state.ready()
     report = assignment_report(problem, state.assignment(source), normalizers, compiled)
+    if source == "current":
+        report["violations"] = _without_pins(report["violations"])
     report["source"] = source
     return report
 
@@ -392,7 +399,7 @@ def get_result() -> dict[str, Any]:
     if current is not None:
         current_report = assignment_report(problem, current, normalizers, compiled)
         out["vs_current"] = comparison(current_report, report)
-        out["current_violations"] = current_report["violations"]
+        out["current_violations"] = _without_pins(current_report["violations"])
     return out
 
 

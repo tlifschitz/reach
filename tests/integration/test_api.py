@@ -156,6 +156,8 @@ def test_pin_unpin_and_reoptimize(loaded):
     p = loaded.post("/api/pins", json={"item": "mug", "location": before["mug"]}).json()
     assert p["has_result"]
     p = loaded.post("/api/pins", json={"item": "dinner_plate", "location": target}).json()
+    current = loaded.get("/api/evaluate", params={"source": "current"}).json()
+    assert {v["kind"] for v in current["violations"]} == {"constraint"}  # pins are not rules
     plate = next(i for i in p["items"] if i["id"] == "dinner_plate")
     assert plate["pinned"] == target and plate["pin_source"] == "ui" and not p["has_result"]
 
