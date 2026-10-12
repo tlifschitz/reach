@@ -84,3 +84,8 @@ cost:
     groups: {}                      # per nest_group, e.g. {plates: 0.6, pots: 0.35}
   weights: {distance: 0.2, openings: 0.2, time: 0.35, effort: 0.25, extra_trips: 0, clearings: 0}
   # normalizers: {distance: 100000, openings: 500, time: 4000, effort: 100}
+  # Items that no routine mentions are charged a generic access: a round trip from `origin` to
+  # their compartment (walk, opening, effort), times their estimated_frequency_per_week.
+  occasional_items:
+    enabled: true
+    origin: null                    # a point [x, y] or a POI/zone id; null = centre of everything

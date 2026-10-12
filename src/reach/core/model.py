@@ -37,6 +37,8 @@ class Location:
     tags: frozenset[str] = frozenset()
     name: str = ""
     geometry: Mapping[str, Any] | None = None
+    area: str = ""
+    """Coarse grouping of locations (a wall, a room, an aisle). Used to report stability."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -144,6 +146,11 @@ class CostParams:
         }
     )
     normalizers: Mapping[str, float] | None = None
+    occasional: bool = True
+    """Charge a generic access cost for items that no routine mentions."""
+    occasional_origin: Point | str | None = None
+    """Where occasional accesses start and end: a point or a location id. ``None`` uses the
+    centroid of all locations."""
 
     def opening(self, kind: str, level: int) -> OpeningProfile | None:
         by_level = self.openings.get(kind)

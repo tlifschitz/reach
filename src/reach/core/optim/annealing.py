@@ -50,6 +50,7 @@ class SimulatedAnnealing(Optimizer):
         final_temperature_ratio: float = 1e-3,
         move_weights: tuple[float, float, float, float, float] = (0.40, 0.30, 0.10, 0.10, 0.10),
         progress_interval_s: float = 0.25,
+        restarts: int = 1,
     ) -> None:
         self.seed = seed
         self.iterations = max(0, iterations)
@@ -58,6 +59,7 @@ class SimulatedAnnealing(Optimizer):
         self.final_temperature_ratio = final_temperature_ratio
         self.move_weights = move_weights
         self.progress_interval_s = progress_interval_s
+        self.restarts = max(1, restarts)
 
     def optimize(
         self,
@@ -68,6 +70,8 @@ class SimulatedAnnealing(Optimizer):
         progress: ProgressCallback | None = None,
         cancel: CancelToken | None = None,
     ) -> OptimizationResult:
+        if self.restarts > 1:
+            return self._multi_start(problem, initial, normalizers, progress, cancel)
         started = time.perf_counter()
         c = Compiled(problem)
         if initial is None:
@@ -108,7 +112,7 @@ class SimulatedAnnealing(Optimizer):
                     temperature = t0 * ratio**fraction
                     done = fraction >= 1.0
                 else:
-                    fraction = it / self.iterations if self.iterations else 1.0
+                    fraction = min(1.0, it / self.iterations) if self.iterations else 1.0
                     done = it >= self.iterations
                 if it % hist_every == 0:
                     history.append((it, best_cost))
@@ -169,6 +173,93 @@ class SimulatedAnnealing(Optimizer):
             optimizer=self.name,
         )
 
+    def _multi_start(
+        self,
+        problem: Problem,
+        initial: Assignment | None,
+        normalizers: Mapping[str, float] | None,
+        progress: ProgressCallback | None,
+        cancel: CancelToken | None,
+    ) -> OptimizationResult:
+        """Run ``restarts`` independent annealings from the same start and keep the best.
+
+        Each restart gets the full iteration budget and its own seed, so the result is still a
+        pure function of the problem and the seed. A time limit is shared between the restarts.
+        """
+        started = time.perf_counter()
+        best: OptimizationResult | None = None
+        history: list[tuple[int, float]] = []
+        iterations = 0
+        stopped = False
+        for n in range(self.restarts):
+            single = SimulatedAnnealing(
+                seed=self.seed + 7919 * n,
+                iterations=self.iterations,
+                time_limit_s=(
+                    None if self.time_limit_s is None else self.time_limit_s / self.restarts
+                ),
+                initial_acceptance=self.initial_acceptance,
+                final_temperature_ratio=self.final_temperature_ratio,
+                move_weights=self.move_weights,
+                progress_interval_s=self.progress_interval_s,
+            )
+            offset = iterations
+            floor = best.cost if best is not None else float("inf")
+            keep = best.assignment if best is not None else None
+
+            def relay(
+                e: ProgressEvent,
+                n: int = n,
+                offset: int = offset,
+                floor: float = floor,
+                keep: Assignment | None = keep,
+            ) -> None:
+                if progress is None:
+                    return
+                improved = e.best_cost < floor
+                progress(
+                    ProgressEvent(
+                        iteration=offset + e.iteration,
+                        total_iterations=(
+                            None
+                            if e.total_iterations is None
+                            else e.total_iterations * self.restarts
+                        ),
+                        elapsed_s=time.perf_counter() - started,
+                        temperature=e.temperature,
+                        current_cost=e.current_cost,
+                        best_cost=min(e.best_cost, floor),
+                        initial_cost=e.initial_cost,
+                        fraction=(n + e.fraction) / self.restarts,
+                        best_assignment=e.best_assignment if improved else keep,
+                    )
+                )
+
+            result = single.optimize(
+                problem, initial=initial, normalizers=normalizers, progress=relay, cancel=cancel
+            )
+            normalizers = result.normalizers
+            history += [(offset + it, min(cost, floor)) for it, cost in result.history]
+            iterations += result.iterations
+            if best is None or result.cost < best.cost:
+                best = result
+            if result.stopped_early:
+                stopped = True
+                break
+        assert best is not None
+        return OptimizationResult(
+            assignment=best.assignment,
+            cost=best.cost,
+            initial_cost=best.initial_cost,
+            normalizers=best.normalizers,
+            iterations=iterations,
+            elapsed_s=time.perf_counter() - started,
+            stopped_early=stopped,
+            seed=self.seed,
+            history=history,
+            optimizer=self.name,
+        )
+
 
 class _Search:
     """Mutable search state and the move generators."""
@@ -189,10 +280,12 @@ class _Search:
         self.rng = rng
         self.movable = c.movable
         movable = set(c.movable)
-        # Items that no routine or soft constraint mentions never change the cost on their own.
+        # Items with no routine, no soft constraint and no estimated use never change the cost.
         # Picking them as often as the others wastes most of the budget, so the first item of a
         # move is usually an active one. They still move, mostly as the partner of a swap.
-        self.active = [i for i in c.movable if c.item_routines[i] or c.item_softs[i]]
+        self.active = [
+            i for i in c.movable if c.item_routines[i] or c.item_softs[i] or c.is_occasional[i]
+        ]
         self.p_active = active_bias if self.active else 0.0
         self.group_seeds = [
             i

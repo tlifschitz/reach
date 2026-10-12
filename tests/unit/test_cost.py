@@ -4,7 +4,7 @@ import pytest
 
 from reach.core.compile import Compiled
 from reach.core.cost import Evaluator, compute_normalizers, evaluate, soft_penalty
-from reach.core.model import METRICS, Problem, Selector, SoftConstraint
+from reach.core.model import METRICS, Item, Problem, Selector, SoftConstraint
 from reach.core.optim import greedy_assignment
 from reach.core.optim.annealing import _Search
 from tests.helpers import PARAMS, items, locations, random_problem, routine
@@ -18,8 +18,10 @@ def test_cost_is_one_at_the_assignment_the_normalizers_come_from():
         p.locations, p.items, p.routines, p.params, p.obstructions, p.hard, (), p.pins
     )
     ev = evaluate(p_no_soft, start)
-    active = sum(w for m, w in p.params.weights.items() if ev.totals[m] > 0)
-    assert ev.cost == pytest.approx(active)
+    active = sum(w for m, w in p.params.weights.items() if ev.routine_totals[m] > 0)
+    # The routines cost exactly the active weights; occasional accesses come on top.
+    assert ev.cost - ev.occasional_cost == pytest.approx(active)
+    assert ev.occasional_cost > 0 and ev.occasional_items > 0
 
 
 def test_weekly_totals_multiply_by_frequency():
@@ -106,3 +108,71 @@ def test_incremental_cost_matches_full_recomputation(seed):
     assert search.contents == [sorted(x) for x in map(sorted, c.contents(assign))] or all(
         sorted(a) == sorted(b) for a, b in zip(search.contents, c.contents(assign), strict=True)
     )
+
+
+def occasional_problem(**params):
+    from dataclasses import replace
+
+    its = {
+        "used": Item("used", estimated_frequency=5),
+        "spare": Item("spare", weight=2.0, estimated_frequency=2),
+        "never": Item("never", estimated_frequency=0),
+    }
+    p = replace(PARAMS, occasional_origin="counter", **params)
+    return Problem(locations(), its, (routine("take used; store used"),), p)
+
+
+def test_occasional_item_costs_a_round_trip_from_the_origin():
+    p = occasional_problem()
+    norm = dict.fromkeys(METRICS, 1.0)
+    ev = evaluate(p, {"used": "A", "spare": "B", "never": "C"}, norm)
+    # 'spare' is in B (300,0), a level-0 drawer, 500 cm from the origin at the counter (0,400).
+    # One access: 1000 cm, 1 opening, 1000/100 + 2 (open) + 1 (handle) = 13 s,
+    # effort 1 x (1 + 0.5 x 2 kg) = 2. Estimated twice a week.
+    assert ev.occasional_items == 1  # 'used' is in a routine, 'never' has no estimated use
+    assert ev.occasional == pytest.approx(
+        {"distance": 2000, "openings": 2, "time": 26, "effort": 4, "extra_trips": 0, "clearings": 0}
+    )
+    assert ev.occasional_cost == pytest.approx(2 * (0.2 * 1000 + 0.2 * 1 + 0.35 * 13 + 0.25 * 2))
+    assert ev.totals["distance"] == pytest.approx(ev.routine_totals["distance"] + 2000)
+    assert ev.cost == pytest.approx(sum(r.cost for r in ev.routines) + ev.occasional_cost)
+
+
+def test_occasional_cost_depends_on_where_the_item_is():
+    p = occasional_problem()
+    norm = dict.fromkeys(METRICS, 1.0)
+    near = evaluate(p, {"used": "A", "spare": "A", "never": "C"}, norm).occasional_cost
+    far = evaluate(p, {"used": "A", "spare": "B", "never": "C"}, norm).occasional_cost
+    stool = evaluate(p, {"used": "A", "spare": "C", "never": "B"}, norm).occasional
+    assert near < far
+    assert stool["openings"] == 4 and stool["effort"] == pytest.approx(2 * 4 * 2)  # level-3 door
+
+
+def test_occasional_access_clears_an_obstruction_that_blocks_by_default():
+    from dataclasses import replace
+
+    from reach.core.model import Obstruction, TransitionCost
+
+    door = Obstruction(
+        "door", "open", "open", frozenset({"B"}), TransitionCost(3, 1), TransitionCost(2, 1)
+    )
+    p = replace(occasional_problem(), obstructions=(door,))
+    ev = evaluate(p, {"used": "A", "spare": "B", "never": "C"}, dict.fromkeys(METRICS, 1.0))
+    assert ev.occasional["clearings"] == 2  # one per access, twice a week
+    assert ev.occasional["openings"] == 2 * 3 and ev.occasional["time"] == pytest.approx(2 * 18)
+
+
+def test_occasional_cost_can_be_disabled():
+    p = occasional_problem(occasional=False)
+    ev = evaluate(p, {"used": "A", "spare": "B", "never": "C"}, dict.fromkeys(METRICS, 1.0))
+    assert ev.occasional_cost == 0 and ev.occasional_items == 0
+    assert ev.totals == ev.routine_totals
+
+
+def test_optimizer_brings_occasional_items_closer():
+    from reach.core.optim import SimulatedAnnealing
+
+    p = occasional_problem()
+    result = SimulatedAnnealing(seed=0, iterations=2000).optimize(p)
+    # A is the closest comfortable location to the origin; the unused item gets what is left.
+    assert result.assignment["spare"] == "A"

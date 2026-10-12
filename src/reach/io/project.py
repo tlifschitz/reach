@@ -320,6 +320,7 @@ def load_project_from_texts(
                 tags=frozenset(c.tags),
                 name=c.name or c.id,
                 geometry=geometry(c),
+                area=c.wall,
             ),
         )
         for other, o0, o1, b0, b1 in rects.get(c.wall, []):
@@ -404,6 +405,14 @@ def load_project_from_texts(
             space_lines.find(("cost", "openings")),
             "cost.openings",
         )
+    origin = cost.occasional_items.origin
+    if isinstance(origin, str) and origin not in locations:
+        report.error(
+            f,
+            f"unknown POI or zone '{origin}'",
+            space_lines.find(("cost", "occasional_items", "origin")),
+            "cost.occasional_items.origin",
+        )
     params = CostParams(
         walking_speed=cost.walking_speed_cm_s,
         handling_time=cost.handling_time_s,
@@ -415,6 +424,8 @@ def load_project_from_texts(
         nest_factors=dict(cost.nesting.groups),
         weights=cost.weights.model_dump(),
         normalizers=dict(cost.normalizers) if cost.normalizers else None,
+        occasional=cost.occasional_items.enabled,
+        occasional_origin=(origin if isinstance(origin, str) or origin is None else Point(*origin)),
     )
     if sum(params.weights.values()) <= 0:
         report.error(f, "all weights are 0", space_lines.find(("cost", "weights")), "cost.weights")

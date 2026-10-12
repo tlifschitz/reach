@@ -168,6 +168,14 @@ class Weights(Strict):
     clearings: float = Field(default=0.0, ge=0)
 
 
+class OccasionalItems(Strict):
+    """Generic access cost for items that no routine mentions."""
+
+    enabled: bool = True
+    origin: str | XY | None = None
+    """A POI or zone id, or a point. Defaults to the centroid of every location."""
+
+
 class CostModel(Strict):
     walking_speed_cm_s: float = Field(default=100.0, gt=0)
     handling_time_s: float = Field(default=1.5, ge=0)
@@ -178,6 +186,7 @@ class CostModel(Strict):
     nesting: Nesting = Nesting()
     weights: Weights = Weights()
     normalizers: dict[str, float] | None = None
+    occasional_items: OccasionalItems = OccasionalItems()
 
 
 def default_level_ranges() -> list[LevelRange]:

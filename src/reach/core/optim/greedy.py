@@ -132,6 +132,10 @@ def _construct(
         visit = loc_seconds[loc] + _EFFORT_SECONDS * c.level_penalty[loc] * c.weight_mult[i]
         return walk + uses[i] * visit
 
+    def occasional(i: int, loc: int) -> float:
+        walk = 2.0 * c.dist[c.origin][loc] / c.speed
+        return walk + loc_seconds[loc] + _EFFORT_SECONDS * c.level_penalty[loc] * c.weight_mult[i]
+
     def candidates(i: int) -> list[int]:
         return [loc for loc in c.domains[i] if c.location_ok(loc, [*contents[loc], i])]
 
@@ -143,6 +147,8 @@ def _construct(
             continue
         if uses[i] > 0:
             loc = min(options, key=lambda loc: (score(i, loc), -free(loc), loc))
+        elif c.is_occasional[i]:
+            loc = min(options, key=lambda loc: (occasional(i, loc), -free(loc), loc))
         else:
             loc = max(options, key=lambda loc: (free(loc), -loc))
         assign[i] = loc

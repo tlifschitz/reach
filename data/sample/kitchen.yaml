@@ -269,3 +269,8 @@ cost:
     groups: {plates: 0.6, bowls: 0.35, pots: 0.35, pans: 0.5, mixing_bowls: 0.2,
              containers: 0.3, trays: 0.3, cups: 0.5}
   weights: {distance: 0.2, openings: 0.2, time: 0.35, effort: 0.25, extra_trips: 0, clearings: 0}
+  # Items that no routine mentions still get used now and then. Each is charged a round trip
+  # from this point to its compartment, times its estimated_frequency_per_week.
+  occasional_items:
+    enabled: true
+    origin: [200, 160]      # the middle of the room; a POI or zone id also works

@@ -243,6 +243,28 @@ class Compiled:
             sum(self.routines[r].frequency for r in rs) for rs in self.item_routines
         ]
 
+        # Occasional items: mentioned by no routine, but with an estimated usage.
+        origin = p.occasional_origin
+        if isinstance(origin, str):
+            self.origin = self._loc(origin, "occasional origin")
+        elif origin is not None:
+            self.origin = self._point(origin)
+        else:
+            n = max(len(locs), 1)
+            self.origin = self._point(
+                Point(
+                    sum(loc.position.x for loc in locs) / n, sum(loc.position.y for loc in locs) / n
+                )
+            )
+        self.estimated = [it.estimated_frequency for it in items]
+        self.is_occasional = [
+            p.occasional and not self.item_routines[i] and self.estimated[i] > 0
+            for i in range(self.n_items)
+        ]
+        self.obs_default_blocking = [
+            o.default_state == o.blocking_state for o in problem.obstructions
+        ]
+
         # Soft constraints.
         self.softs: list[CompiledSoft] = []
         item_softs: list[list[int]] = [[] for _ in items]
