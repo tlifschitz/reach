@@ -1,0 +1,39 @@
+# Template: constraints.
+#
+# A selector (`select`, `from`) matches items by any of:
+#   items: [item ids]    categories: [categories]    tags: [item tags]
+
+# Hard constraints are never violated.
+hard: []
+#  # Items may only go in compartments that carry a tag.
+#  - {id: kids_reach, type: require_tag, select: {categories: [kids]}, tag: child_reachable}
+#
+#  # Items may not go in compartments that carry a tag.
+#  - {id: no_heat, type: forbid_tag, select: {categories: [spices, oils]}, tag: near_heat}
+#
+#  # Distance from the compartment's access point to a POI or zone.
+#  - {id: cleaning_near_sink, type: max_distance, select: {categories: [cleaning]},
+#     poi: secondary_sink, distance_cm: 120}
+#  - {id: towels_far_from_stove, type: min_distance, select: {categories: [textiles]},
+#     poi: stove, distance_cm: 80}
+#
+#  # Level bounds: 0 = low, 1 = comfortable, 2 = high, 3 = step stool.
+#  - {id: knives_up, type: min_level, select: {tags: [sharp]}, level: 1}
+#  - {id: heavy_low, type: max_level, select: {tags: [heavy]}, level: 1}
+#
+#  # Two groups of items that never share a compartment.
+#  - id: chemicals_apart
+#    type: separate
+#    select: {categories: [cleaning]}
+#    from: {categories: [food_dry, spices]}
+
+# Soft constraints add a penalty when broken. The penalty is in units of total cost, where the
+# greedy starting solution costs about 1: `0.01` means "worth 1% of my weekly effort".
+soft: []
+#  # Same compartment: the penalty is charged for every extra compartment the group occupies.
+#  - {id: espresso_kit, type: together, select: {items: [portafilter, tamper]},
+#     mode: same_compartment, penalty: 0.01}
+#
+#  # Nearby: the penalty is charged per metre of average distance beyond radius_cm.
+#  - {id: baking_gear, type: together, select: {categories: [bakeware]},
+#     mode: nearby, radius_cm: 80, penalty: 0.005}

@@ -1,0 +1,271 @@
+# Sample kitchen: an L-shaped kitchen of 4.2 m x 3.2 m with a utility corner.
+#
+# Floor plan, top view. Units are centimetres. The origin is the north-west corner,
+# x grows to the east and y grows to the south.
+#
+#        x=0                                                     x=420
+#   y=0   +----------------------- north wall -----------------------+
+#         | N1 | N2  |   sink    | dishw. | N5  | stove | N7 |        |
+#         |door|     |           |        |     |       |    | E1     |
+#   door ->                                                  | coffee | east
+#         |                                                  | pantry | wall
+#         |   table                 utility   utility        | fridge |
+#         |                         drawers   sink           |        |
+#  y=320  +----------------------- south wall -----------------------+
+#
+# The entrance door is on the west wall. When it is open it rests against the first 60 cm of
+# the north wall and covers column N1 completely.
+
+name: Sample kitchen
+
+room:
+  outline: [[0, 0], [420, 0], [420, 320], [0, 320]]
+
+# A wall goes from its left end to its right end as seen from inside the room.
+walls:
+  - {id: north, name: North wall, start: [0, 0], end: [420, 0]}
+  - {id: east, name: East wall, start: [420, 0], end: [420, 320]}
+  - {id: south, name: South wall, start: [420, 320], end: [0, 320]}
+
+# Level of a compartment from its centre height. A compartment can override it with `level`.
+level_ranges:
+  - {level: 0, max_cm: 60}    # low: bending down
+  - {level: 1, max_cm: 160}   # comfortable
+  - {level: 2, max_cm: 195}   # high: reaching up
+  - {level: 3}                # needs the step stool
+
+pois:
+  - {id: entrance, type: entrance, name: Entrance, position: [40, 160]}
+  - {id: dish_rack, type: dish_rack, name: Dish rack, position: [90, 95],
+     wall: north, offset_cm: 62, width_cm: 56, bottom_cm: 90, top_cm: 115}
+  - {id: main_sink, type: sink, name: Main sink, position: [160, 95],
+     wall: north, offset_cm: 125, width_cm: 70, bottom_cm: 85, top_cm: 90}
+  - {id: dishwasher, type: dishwasher, name: Dishwasher, position: [230, 100],
+     wall: north, offset_cm: 200, width_cm: 60, bottom_cm: 10, top_cm: 85}
+  - {id: stove, type: stove, name: Stove, position: [350, 95],
+     wall: north, offset_cm: 320, width_cm: 60, bottom_cm: 85, top_cm: 90}
+  - {id: oven, type: oven, name: Oven, position: [350, 100],
+     wall: north, offset_cm: 320, width_cm: 60, bottom_cm: 25, top_cm: 85}
+  - {id: espresso_machine, type: appliance, name: Espresso machine, position: [325, 140],
+     wall: east, offset_cm: 122, width_cm: 30, bottom_cm: 90, top_cm: 130}
+  - {id: outlet_coffee, type: outlet, name: Outlet (coffee station), position: [325, 165],
+     wall: east, offset_cm: 160, width_cm: 8, bottom_cm: 110, top_cm: 118}
+  - {id: outlet_prep, type: outlet, name: Outlet (prep counter), position: [290, 95],
+     wall: north, offset_cm: 286, width_cm: 8, bottom_cm: 110, top_cm: 118}
+  - {id: freezer, type: freezer, name: Freezer, position: [325, 270],
+     wall: east, offset_cm: 240, width_cm: 60, bottom_cm: 10, top_cm: 85}
+  - {id: fridge, type: fridge, name: Fridge, position: [325, 270],
+     wall: east, offset_cm: 240, width_cm: 60, bottom_cm: 85, top_cm: 200}
+  - {id: secondary_sink, type: sink, name: Utility sink, position: [300, 225],
+     wall: south, offset_cm: 85, width_cm: 70, bottom_cm: 85, top_cm: 90}
+  - {id: trash, type: trash, name: Trash and recycling, position: [170, 235]}
+
+zones:
+  - {id: counter_corner, type: countertop, name: Counter by the door, position: [30, 95], size: [60, 60],
+     wall: north, offset_cm: 0, width_cm: 60, bottom_cm: 85, top_cm: 90}
+  - {id: counter_prep, type: countertop, name: Prep counter, position: [260, 95], size: [120, 60],
+     wall: north, offset_cm: 200, width_cm: 120, bottom_cm: 85, top_cm: 90}
+  - {id: counter_east, type: countertop, name: Counter by the stove, position: [325, 90], size: [60, 60],
+     wall: east, offset_cm: 60, width_cm: 60, bottom_cm: 85, top_cm: 90}
+  - {id: coffee_station, type: countertop, name: Coffee station, position: [325, 155], size: [60, 60],
+     wall: east, offset_cm: 120, width_cm: 60, bottom_cm: 85, top_cm: 90}
+  - {id: counter_utility, type: countertop, name: Utility counter, position: [230, 225], size: [60, 60],
+     wall: south, offset_cm: 160, width_cm: 60, bottom_cm: 85, top_cm: 90}
+  - {id: table, type: table, name: Table, position: [95, 235], size: [90, 70]}
+
+# volume_l is the usable interior volume. Levels are derived from the heights.
+compartments:
+  # --- North wall, column N1 (0-60 cm): behind the entrance door when it is open ---
+  - {id: n1_base, type: door, name: N1 base cabinet, access_point: [30, 95],
+     wall: north, offset_cm: 0, width_cm: 60, bottom_cm: 10, top_cm: 85,
+     volume_l: 140, max_fill_factor: 0.6, tags: [child_reachable]}
+  - {id: n1_up_low, type: door, name: N1 upper cabinet (lower shelf), access_point: [30, 95],
+     wall: north, offset_cm: 0, width_cm: 60, bottom_cm: 140, top_cm: 172,
+     volume_l: 50, max_fill_factor: 0.7, max_weight_kg: 15}
+  - {id: n1_up_high, type: door, name: N1 upper cabinet (upper shelf), access_point: [30, 95],
+     wall: north, offset_cm: 0, width_cm: 60, bottom_cm: 172, top_cm: 205,
+     volume_l: 50, max_fill_factor: 0.7, max_weight_kg: 15}
+
+  # --- North wall, column N2 (60-120 cm): drawers under the dish rack ---
+  - {id: n2_dr1, type: drawer, name: N2 top drawer, access_point: [90, 95],
+     wall: north, offset_cm: 60, width_cm: 60, bottom_cm: 62, top_cm: 85,
+     volume_l: 29, max_fill_factor: 0.7, max_weight_kg: 25, tags: [child_reachable]}
+  - {id: n2_dr2, type: drawer, name: N2 middle drawer, access_point: [90, 95],
+     wall: north, offset_cm: 60, width_cm: 60, bottom_cm: 38, top_cm: 62,
+     volume_l: 40, max_fill_factor: 0.7, max_weight_kg: 25, tags: [child_reachable]}
+  - {id: n2_dr3, type: drawer, name: N2 bottom drawer, access_point: [90, 95],
+     wall: north, offset_cm: 60, width_cm: 60, bottom_cm: 10, top_cm: 38,
+     volume_l: 50, max_fill_factor: 0.7, max_weight_kg: 25, tags: [child_reachable]}
+  - {id: n2_up_low, type: door, name: N2 upper cabinet (lower shelf), access_point: [90, 95],
+     wall: north, offset_cm: 60, width_cm: 60, bottom_cm: 140, top_cm: 172,
+     volume_l: 50, max_fill_factor: 0.7, max_weight_kg: 15}
+  - {id: n2_up_high, type: door, name: N2 upper cabinet (upper shelf), access_point: [90, 95],
+     wall: north, offset_cm: 60, width_cm: 60, bottom_cm: 172, top_cm: 205,
+     volume_l: 50, max_fill_factor: 0.7, max_weight_kg: 15}
+
+  # --- North wall, column N3 (120-200 cm): main sink ---
+  - {id: n3_under_sink, type: door, name: Under the main sink, access_point: [160, 95],
+     wall: north, offset_cm: 120, width_cm: 80, bottom_cm: 10, top_cm: 85,
+     volume_l: 120, max_fill_factor: 0.5, tags: [child_reachable, near_main_sink, damp]}
+  - {id: n3_up_low, type: door, name: Above the sink (lower shelf), access_point: [160, 95],
+     wall: north, offset_cm: 120, width_cm: 80, bottom_cm: 140, top_cm: 172,
+     volume_l: 68, max_fill_factor: 0.7, max_weight_kg: 20, tags: [near_main_sink]}
+  # Reaching over the sink makes this shelf step-stool territory: manual level override.
+  - {id: n3_up_high, type: door, name: Above the sink (upper shelf), access_point: [160, 95],
+     wall: north, offset_cm: 120, width_cm: 80, bottom_cm: 172, top_cm: 205, level: 3,
+     volume_l: 68, max_fill_factor: 0.7, max_weight_kg: 20, tags: [near_main_sink]}
+
+  # --- North wall, column N4 (200-260 cm): above the dishwasher ---
+  - {id: n4_up_low, type: door, name: N4 upper cabinet (lower shelf), access_point: [230, 95],
+     wall: north, offset_cm: 200, width_cm: 60, bottom_cm: 140, top_cm: 172,
+     volume_l: 50, max_fill_factor: 0.7, max_weight_kg: 15}
+  - {id: n4_up_high, type: door, name: N4 upper cabinet (upper shelf), access_point: [230, 95],
+     wall: north, offset_cm: 200, width_cm: 60, bottom_cm: 172, top_cm: 205,
+     volume_l: 50, max_fill_factor: 0.7, max_weight_kg: 15}
+
+  # --- North wall, column N5 (260-320 cm): drawers next to the dishwasher ---
+  - {id: n5_dr1, type: drawer, name: N5 top drawer, access_point: [290, 95],
+     wall: north, offset_cm: 260, width_cm: 60, bottom_cm: 62, top_cm: 85,
+     volume_l: 29, max_fill_factor: 0.7, max_weight_kg: 25, tags: [child_reachable]}
+  - {id: n5_dr2, type: drawer, name: N5 middle drawer, access_point: [290, 95],
+     wall: north, offset_cm: 260, width_cm: 60, bottom_cm: 38, top_cm: 62,
+     volume_l: 40, max_fill_factor: 0.7, max_weight_kg: 25, tags: [child_reachable]}
+  - {id: n5_dr3, type: drawer, name: N5 bottom drawer, access_point: [290, 95],
+     wall: north, offset_cm: 260, width_cm: 60, bottom_cm: 10, top_cm: 38,
+     volume_l: 50, max_fill_factor: 0.7, max_weight_kg: 25, tags: [child_reachable]}
+  - {id: n5_up_low, type: door, name: N5 upper cabinet (lower shelf), access_point: [290, 95],
+     wall: north, offset_cm: 260, width_cm: 60, bottom_cm: 140, top_cm: 172,
+     volume_l: 50, max_fill_factor: 0.7, max_weight_kg: 15}
+  - {id: n5_up_high, type: door, name: N5 upper cabinet (upper shelf), access_point: [290, 95],
+     wall: north, offset_cm: 260, width_cm: 60, bottom_cm: 172, top_cm: 205,
+     volume_l: 50, max_fill_factor: 0.7, max_weight_kg: 15}
+
+  # --- North wall, column N6 (320-380 cm): stove and oven ---
+  - {id: n6_oven_drawer, type: drawer, name: Drawer under the oven, access_point: [350, 100],
+     wall: north, offset_cm: 320, width_cm: 60, bottom_cm: 10, top_cm: 25,
+     volume_l: 27, max_fill_factor: 0.8, tags: [child_reachable, near_heat]}
+
+  # --- North wall, column N7 (380-420 cm): narrow units next to the stove ---
+  - {id: n7_pullout, type: drawer, name: Pull-out next to the stove, access_point: [400, 95],
+     wall: north, offset_cm: 380, width_cm: 40, bottom_cm: 10, top_cm: 85,
+     volume_l: 60, max_fill_factor: 0.7, tags: [child_reachable, near_heat]}
+  - {id: n7_up_low, type: door, name: N7 upper cabinet (lower shelf), access_point: [400, 95],
+     wall: north, offset_cm: 380, width_cm: 40, bottom_cm: 140, top_cm: 172,
+     volume_l: 33, max_fill_factor: 0.7, max_weight_kg: 10, tags: [near_heat]}
+  - {id: n7_up_high, type: door, name: N7 upper cabinet (upper shelf), access_point: [400, 95],
+     wall: north, offset_cm: 380, width_cm: 40, bottom_cm: 172, top_cm: 205,
+     volume_l: 33, max_fill_factor: 0.7, max_weight_kg: 10, tags: [near_heat]}
+
+  # --- East wall, column E1 (60-120 cm) ---
+  - {id: e1_dr1, type: drawer, name: E1 top drawer, access_point: [325, 90],
+     wall: east, offset_cm: 60, width_cm: 60, bottom_cm: 62, top_cm: 85,
+     volume_l: 29, max_fill_factor: 0.7, max_weight_kg: 25, tags: [child_reachable]}
+  - {id: e1_dr2, type: drawer, name: E1 middle drawer, access_point: [325, 90],
+     wall: east, offset_cm: 60, width_cm: 60, bottom_cm: 36, top_cm: 62,
+     volume_l: 45, max_fill_factor: 0.7, max_weight_kg: 30, tags: [child_reachable]}
+  - {id: e1_dr3, type: drawer, name: E1 bottom drawer, access_point: [325, 90],
+     wall: east, offset_cm: 60, width_cm: 60, bottom_cm: 10, top_cm: 36,
+     volume_l: 45, max_fill_factor: 0.7, max_weight_kg: 30, tags: [child_reachable]}
+  - {id: e1_up_low, type: door, name: E1 upper cabinet (lower shelf), access_point: [325, 90],
+     wall: east, offset_cm: 60, width_cm: 60, bottom_cm: 140, top_cm: 172,
+     volume_l: 50, max_fill_factor: 0.7, max_weight_kg: 15}
+  - {id: e1_up_high, type: door, name: E1 upper cabinet (upper shelf), access_point: [325, 90],
+     wall: east, offset_cm: 60, width_cm: 60, bottom_cm: 172, top_cm: 205,
+     volume_l: 50, max_fill_factor: 0.7, max_weight_kg: 15}
+
+  # --- East wall, column E2 (120-180 cm): coffee station ---
+  - {id: e2_dr1, type: drawer, name: Coffee station drawer, access_point: [325, 150],
+     wall: east, offset_cm: 120, width_cm: 60, bottom_cm: 62, top_cm: 85,
+     volume_l: 29, max_fill_factor: 0.7, max_weight_kg: 25, tags: [child_reachable]}
+  - {id: e2_base, type: door, name: Coffee station base cabinet, access_point: [325, 150],
+     wall: east, offset_cm: 120, width_cm: 60, bottom_cm: 10, top_cm: 62,
+     volume_l: 100, max_fill_factor: 0.6, tags: [child_reachable]}
+  - {id: e2_up_low, type: door, name: Coffee station upper (lower shelf), access_point: [325, 150],
+     wall: east, offset_cm: 120, width_cm: 60, bottom_cm: 140, top_cm: 172,
+     volume_l: 50, max_fill_factor: 0.7, max_weight_kg: 15}
+  - {id: e2_up_high, type: door, name: Coffee station upper (upper shelf), access_point: [325, 150],
+     wall: east, offset_cm: 120, width_cm: 60, bottom_cm: 172, top_cm: 205,
+     volume_l: 50, max_fill_factor: 0.7, max_weight_kg: 15}
+
+  # --- East wall, column E3 (180-240 cm): tall pantry ---
+  - {id: pantry_1, type: pantry_shelf, name: Pantry shelf 1 (floor), access_point: [325, 210],
+     wall: east, offset_cm: 180, width_cm: 60, bottom_cm: 10, top_cm: 45,
+     volume_l: 105, max_fill_factor: 0.7, tags: [pantry, child_reachable]}
+  - {id: pantry_2, type: pantry_shelf, name: Pantry shelf 2, access_point: [325, 210],
+     wall: east, offset_cm: 180, width_cm: 60, bottom_cm: 45, top_cm: 80,
+     volume_l: 105, max_fill_factor: 0.7, max_weight_kg: 30, tags: [pantry, child_reachable]}
+  - {id: pantry_3, type: pantry_shelf, name: Pantry shelf 3, access_point: [325, 210],
+     wall: east, offset_cm: 180, width_cm: 60, bottom_cm: 80, top_cm: 115,
+     volume_l: 105, max_fill_factor: 0.7, max_weight_kg: 30, tags: [pantry]}
+  - {id: pantry_4, type: pantry_shelf, name: Pantry shelf 4, access_point: [325, 210],
+     wall: east, offset_cm: 180, width_cm: 60, bottom_cm: 115, top_cm: 150,
+     volume_l: 105, max_fill_factor: 0.7, max_weight_kg: 30, tags: [pantry]}
+  - {id: pantry_5, type: pantry_shelf, name: Pantry shelf 5, access_point: [325, 210],
+     wall: east, offset_cm: 180, width_cm: 60, bottom_cm: 150, top_cm: 185,
+     volume_l: 105, max_fill_factor: 0.7, max_weight_kg: 20, tags: [pantry]}
+  - {id: pantry_6, type: pantry_shelf, name: Pantry shelf 6 (top), access_point: [325, 210],
+     wall: east, offset_cm: 180, width_cm: 60, bottom_cm: 185, top_cm: 225,
+     volume_l: 120, max_fill_factor: 0.7, max_weight_kg: 20, tags: [pantry]}
+
+  # --- East wall, column E4 (240-300 cm): above the fridge ---
+  - {id: e4_above_fridge, type: door, name: Cabinet above the fridge, access_point: [325, 270],
+     wall: east, offset_cm: 240, width_cm: 60, bottom_cm: 200, top_cm: 235,
+     volume_l: 100, max_fill_factor: 0.7, max_weight_kg: 15}
+
+  # --- South wall, column S1 (80-160 cm): utility sink ---
+  - {id: s1_under_sink, type: door, name: Under the utility sink, access_point: [300, 225],
+     wall: south, offset_cm: 80, width_cm: 80, bottom_cm: 10, top_cm: 85,
+     volume_l: 120, max_fill_factor: 0.5, tags: [child_reachable, near_secondary_sink, damp]}
+  - {id: s1_up_low, type: door, name: Above the utility sink (lower shelf), access_point: [300, 225],
+     wall: south, offset_cm: 80, width_cm: 80, bottom_cm: 140, top_cm: 172,
+     volume_l: 68, max_fill_factor: 0.7, max_weight_kg: 20, tags: [near_secondary_sink]}
+  - {id: s1_up_high, type: door, name: Above the utility sink (upper shelf), access_point: [300, 225],
+     wall: south, offset_cm: 80, width_cm: 80, bottom_cm: 172, top_cm: 205,
+     volume_l: 68, max_fill_factor: 0.7, max_weight_kg: 20, tags: [near_secondary_sink]}
+
+  # --- South wall, column S2 (160-220 cm): utility drawers ---
+  - {id: s2_dr1, type: drawer, name: Utility top drawer, access_point: [230, 225],
+     wall: south, offset_cm: 160, width_cm: 60, bottom_cm: 62, top_cm: 85,
+     volume_l: 29, max_fill_factor: 0.7, max_weight_kg: 25, tags: [child_reachable]}
+  - {id: s2_dr2, type: drawer, name: Utility middle drawer, access_point: [230, 225],
+     wall: south, offset_cm: 160, width_cm: 60, bottom_cm: 38, top_cm: 62,
+     volume_l: 40, max_fill_factor: 0.7, max_weight_kg: 25, tags: [child_reachable]}
+  - {id: s2_dr3, type: drawer, name: Utility bottom drawer, access_point: [230, 225],
+     wall: south, offset_cm: 160, width_cm: 60, bottom_cm: 10, top_cm: 38,
+     volume_l: 50, max_fill_factor: 0.7, max_weight_kg: 25, tags: [child_reachable]}
+
+obstructions:
+  # Usually open; it then rests against the north wall and hides column N1.
+  - id: entrance_door
+    name: Entrance door
+    default_state: open
+    blocks_when: open
+    wall_range: {wall: north, from_cm: 0, to_cm: 60}
+    clear: {time_s: 3, openings: 1}      # push the door closed
+    restore: {time_s: 3, openings: 1}    # open it again
+  # Usually closed; while it is open (unloading) it is in the way of the drawers next to it.
+  - id: dishwasher_door
+    name: Dishwasher door
+    default_state: closed
+    blocks_when: open
+    blocks: [n5_dr1, n5_dr2, n5_dr3]
+    clear: {time_s: 2, openings: 1}
+    restore: {time_s: 2, openings: 1}
+
+cost:
+  walking_speed_cm_s: 100
+  handling_time_s: 1.5
+  openings:
+    drawer:       {default: {time_s: 2.0, cost: 1.0}}
+    door:         {default: {time_s: 2.5, cost: 1.0}, levels: {3: {time_s: 12, cost: 2.0}}}
+    pantry_shelf: {default: {time_s: 2.5, cost: 1.0}, levels: {3: {time_s: 12, cost: 2.0}}}
+    fridge:       {default: {time_s: 3.0, cost: 1.0}}
+    freezer:      {default: {time_s: 3.0, cost: 1.0}}
+  level_penalty: {0: 1.0, 1: 0.1, 2: 1.5, 3: 4.0}
+  weight_factor: 0.5        # effort grows by 50% per kg
+  max_carry: null           # set a number to enable the extra-trip model
+  nesting:
+    default_factor: 0.25
+    groups: {plates: 0.6, bowls: 0.35, pots: 0.35, pans: 0.5, mixing_bowls: 0.2,
+             containers: 0.3, trays: 0.3, cups: 0.5}
+  weights: {distance: 0.2, openings: 0.2, time: 0.35, effort: 0.25, extra_trips: 0, clearings: 0}

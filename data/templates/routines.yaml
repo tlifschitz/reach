@@ -1,0 +1,29 @@
+# Template: routines.
+#
+# One routine is one activity ("espresso", "toast"), not a whole meal. Give each its own weekly
+# frequency. Putting things away after washing is its own routine ("unload the dish rack").
+#
+#   start        the POI or zone where you are when you begin, or a point [x, y]
+#   steps        in order:
+#     go_to: <poi_or_zone>
+#     take: <item_id>                      walk to wherever the item is stored and take it
+#     use: <item_id> at <poi_or_zone>
+#     put_down: <item_id> at <zone>        leave it there (a later `take` picks it up there)
+#     store: <item_id>                     carry it to its compartment
+#     set_state: <obstruction_id> open     or `closed`: e.g. opening the dishwasher door
+#   initial_states   optional: {obstruction_id: open|closed} for this routine only
+
+routines: []
+#  - id: evening_tea
+#    name: Evening tea
+#    frequency_per_week: 7
+#    start: table
+#    steps:
+#      - take: electric_kettle
+#      - use: electric_kettle at main_sink
+#      - put_down: electric_kettle at coffee_station
+#      - take: mug
+#      - take: tea_tin_herbal
+#      - use: tea_tin_herbal at coffee_station
+#      - store: tea_tin_herbal
+#      - put_down: mug at table
